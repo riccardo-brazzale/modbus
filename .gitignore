@@ -1,30 +1,44 @@
 # Python
 __pycache__/
 *.py[cod]
-*.pyo
+*$py.class
 
-# Virtual environment
+# Ambienti virtuali
 venv/
 .venv/
+env/
 
-# Log
+# IDE
+.vscode/
+.idea/
+
+# Logs
 logs/
 *.log
 
-# VS Code
-.vscode/
+# Configurazioni locali
+config.ini
+.env
+.env.*
 
-# JetBrains
-.idea/
-
-# File temporanei
-*.tmp
-*.bak
+# Cache
+.pytest_cache/
+.mypy_cache/
 
 # Sistema operativo
-.DS_Store
 Thumbs.db
 desktop.ini
+.DS_Store
 
-#Escludi:
-config.ini
+# Backup
+*.bak
+*.old
+*.tmp
+
+# Distribuzione
+build/
+dist/
+*.egg-info/
+
+# Bytecode
+__pycache__/
