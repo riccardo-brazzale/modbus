@@ -1,321 +1,216 @@
 #!/usr/bin/env python3
 """
-SERVER MODBUS TCP DI TEST CON VARIAZIONI RANDOM
-================================================
-
-Estende il server di test originale con un task che genera
-variazioni random su tutti i registri (RO e RW) a intervalli
-configurabili, simulando il comportamento di un PLC reale.
-
-Configurazione aggiuntiva in config.ini:
-  [sim]
-  change_interval  = 5.0    ; secondi tra un ciclo di variazioni e il successivo
-  change_ratio     = 0.2    ; frazione di registri che variano ad ogni ciclo (0.0–1.0)
-  coil_flip_prob   = 0.3    ; probabilità che un coil cambi stato
+Modbus TCP Server con supporto IEEE 754.
+Simula un robot e fornisce dati in virgola mobile su registri Modbus.
 """
-
-import asyncio
-import configparser
+import sys
+import time
+import threading
 import json
-import logging
 import random
-from datetime import datetime
-from typing import Dict, List
+from struct import pack, unpack
+from pyModbusTCP.server import ModbusServer, DataBank
+from flask import Flask, jsonify, request
+import configparser
 
-from pymodbus.datastore import (
-    ModbusServerContext,
-    ModbusDeviceContext,
-    ModbusSparseDataBlock,
-)
-from pymodbus.server import StartAsyncTcpServer
+# --- Configurazione ---
+CONFIG_FILE = 'config.ini'
+config = configparser.ConfigParser()
+config.read(CONFIG_FILE)
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s  %(levelname)-8s [%(name)s] %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
-)
-log = logging.getLogger("modbus-server")
+# Parametri di default
+SERVER_HOST = config.get('SERVER', 'host', fallback='0.0.0.0')
+SERVER_PORT = config.getint('SERVER', 'port', fallback=5020)
+REST_PORT = config.getint('SERVER', 'rest_port', fallback=5001)
+UPDATE_INTERVAL = config.getfloat('SERVER', 'update_interval', fallback=1.0)
 
-# ──────────────────────────────────────────────────────────────────────────────
-# CONFIGURAZIONE
-# ──────────────────────────────────────────────────────────────────────────────
-
-cfg = configparser.ConfigParser()
-cfg.read("config.ini")
-
-TEST_HOST = cfg.get("modbus.server", "host",  fallback="0.0.0.0")
-TEST_PORT = int(cfg.get("modbus.server", "port", fallback="8001"))
-
-# Parametri simulazione variazioni random
-CHANGE_INTERVAL = float(cfg.get("sim", "change_interval", fallback="5.0"))
-CHANGE_RATIO    = float(cfg.get("sim", "change_ratio",    fallback="0.2"))
-COIL_FLIP_PROB  = float(cfg.get("sim", "coil_flip_prob",  fallback="0.3"))
-MONITOR_INTERVAL = 30
-
-REGISTERS_PATH = "registers.json"
-
-_ICONS = {
-    "co": "⚡ COIL",
-    "hr": "📝 HREG",
-    "di": "🔌 DINP",
-    "ir": "📊 IREG",
+# Definizione dei registri (indirizzo di partenza per ogni dato)
+# Un float occupa 2 registri (4 bytes)
+REG_MAP = {
+    'robot_x':        0,   # float: posizione X (metri)
+    'robot_y':        2,   # float: posizione Y
+    'robot_z':        4,   # float: posizione Z
+    'robot_speed':    6,   # float: velocità (m/s)
+    'robot_temp':     8,   # float: temperatura motore (°C)
+    'robot_battery':  10,  # float: livello batteria (%)
+    'robot_status':   12,  # int (16 bit): 0=idle, 1=running, 2=error
+    'robot_charge':   14,  # float: corrente di carica (A)
 }
+# Totale registri necessari: (max addr in REG_MAP) + 2 (per l'ultimo float)
+NB_REGISTERS = 16
 
-# ──────────────────────────────────────────────────────────────────────────────
-# CARICAMENTO REGISTRI
-# ──────────────────────────────────────────────────────────────────────────────
+# --- Inizializzazione DataBank (memoria Modbus) ---
+data_bank = DataBank()
+# Inizializza tutti i registri a zero
+for i in range(NB_REGISTERS):
+    data_bank.set_holding_register(i, 0)
 
-def _load_registers(path: str) -> Dict[str, List[int]]:
-    with open(path, "r", encoding="utf-8") as f:
-        data = json.load(f)
-    by_type: Dict[str, List[int]] = {}
-    for entry in data:
-        rtype = entry["tipo_registro"].strip().lower()
-        addr  = int(entry["registro"])
-        by_type.setdefault(rtype, []).append(addr)
-    for rtype in by_type:
-        by_type[rtype] = sorted(set(by_type[rtype]))
-    return by_type
+# --- Funzioni di utilità per IEEE 754 ---
+def float_to_registers(value):
+    """Converte un float in due registri a 16 bit (big-endian)."""
+    packed = pack('>f', value)  # '>f' = big-endian float
+    reg1 = int.from_bytes(packed[0:2], byteorder='big')
+    reg2 = int.from_bytes(packed[2:4], byteorder='big')
+    return reg1, reg2
 
-# ──────────────────────────────────────────────────────────────────────────────
-# TRACING DATABLOCK (invariato rispetto all'originale)
-# ──────────────────────────────────────────────────────────────────────────────
+def registers_to_float(reg1, reg2):
+    """Converte due registri a 16 bit in un float (big-endian)."""
+    packed = reg1.to_bytes(2, byteorder='big') + reg2.to_bytes(2, byteorder='big')
+    return unpack('>f', packed)[0]
 
-class TracingDataBlock:
-    total_writes: int = 0
+def set_float_register(address, value):
+    """Scrive un float a partire dall'indirizzo specificato."""
+    reg1, reg2 = float_to_registers(value)
+    data_bank.set_holding_register(address, reg1)
+    data_bank.set_holding_register(address + 1, reg2)
 
-    def __init__(self, name: str, datablock: ModbusSparseDataBlock):
-        self.name      = name
-        self.datablock = datablock
-        self._writes   = 0
+def get_float_register(address):
+    """Legge un float a partire dall'indirizzo specificato."""
+    reg1 = data_bank.get_holding_register(address)
+    reg2 = data_bank.get_holding_register(address + 1)
+    if reg1 is None or reg2 is None:
+        return None
+    return registers_to_float(reg1, reg2)
 
-    def validate(self, address: int, count: int = 1) -> bool:
-        return self.datablock.validate(address, count)
+def set_int_register(address, value):
+    """Scrive un intero a 16 bit."""
+    data_bank.set_holding_register(address, value)
 
-    def getValues(self, address: int, count: int = 1):
-        return self.datablock.getValues(address, count)
+def get_int_register(address):
+    """Legge un intero a 16 bit."""
+    return data_bank.get_holding_register(address)
 
-    def setValues(self, address: int, values):
-        try:
-            old = self.datablock.getValues(address, len(values))
-        except Exception:
-            old = [None] * len(values)
+# --- Simulazione Dati Robot ---
+def update_robot_data():
+    """Aggiorna i dati di simulazione nei registri."""
+    # Simula un movimento casuale
+    x = random.uniform(-5.0, 5.0)
+    y = random.uniform(-5.0, 5.0)
+    z = random.uniform(0.0, 3.0)
+    speed = random.uniform(0.0, 2.5)
+    temp = random.uniform(20.0, 75.0)
+    battery = max(0.0, min(100.0, battery - random.uniform(0.0, 0.5))) if 'battery' in locals() else 85.0
+    charge = random.uniform(0.0, 10.0)
+    status = random.choices([0, 1, 2], weights=[0.1, 0.85, 0.05])[0]
 
-        result = self.datablock.setValues(address, values)
+    # Scrittura nei registri
+    set_float_register(REG_MAP['robot_x'], x)
+    set_float_register(REG_MAP['robot_y'], y)
+    set_float_register(REG_MAP['robot_z'], z)
+    set_float_register(REG_MAP['robot_speed'], speed)
+    set_float_register(REG_MAP['robot_temp'], temp)
+    # Nota: battery e charge sono gestiti con variabili globali per simulare il ciclo
+    set_float_register(REG_MAP['robot_battery'], battery)
+    set_float_register(REG_MAP['robot_charge'], charge)
+    set_int_register(REG_MAP['robot_status'], status)
 
-        icon = _ICONS.get(self.name, "❓")
-        ts   = datetime.now().strftime("%H:%M:%S.%f")[:-3]
-        changed = False
-        for i, (o, n) in enumerate(zip(old, values)):
-            if o != n:
-                o_s = bool(o) if self.name == "co" else o
-                n_s = bool(n) if self.name == "co" else n
-                log.info(f"[{ts}] {icon} #{address + i:>6}  {o_s} → {n_s}")
-                changed = True
-        if changed:
-            self._writes += 1
-            TracingDataBlock.total_writes += 1
-        return result
+    # Aggiorna variabili globali per la simulazione continua
+    global battery
+    battery = battery
 
-    def dump(self, logical_addresses: List[int], word_step: int = 1) -> List[str]:
-        lines = []
-        for addr in logical_addresses:
-            try:
-                if word_step == 2:
-                    words = self.datablock.getValues(addr, 2)
-                    val   = (words[0] << 16) | words[1]
-                    lines.append(f"    @{addr:>6} = {val}")
-                else:
-                    val = self.datablock.getValues(addr, 1)[0]
-                    lines.append(f"    @{addr:>6} = {bool(val)!s:<5}  ({val})")
-            except Exception:
-                lines.append(f"    @{addr:>6} = ???")
-        return lines
+# Variabile globale per lo stato della batteria
+battery = 85.0
 
-# ──────────────────────────────────────────────────────────────────────────────
-# COSTRUZIONE DATABLOCK
-# ──────────────────────────────────────────────────────────────────────────────
-
-_SENTINEL_COUNT = {1: 2, 2: 3}
-
-def _make_sparse_block(
-    logical_addresses: List[int],
-    word_step: int = 1,
-    name: str = "",
-    default: int = 0,
-) -> TracingDataBlock:
-    if not logical_addresses:
-        log.warning(f"  [{name}] nessun indirizzo — blocco dummy creato @0")
-        return TracingDataBlock(name, ModbusSparseDataBlock({0: default}))
-
-    word_map: Dict[int, int] = {}
-    for addr in logical_addresses:
-        for w in range(word_step):
-            word_map[addr + w] = default
-
-    max_word    = max(word_map.keys())
-    n_sentinels = _SENTINEL_COUNT.get(word_step, word_step + 1)
-    for s in range(1, n_sentinels + 1):
-        word_map[max_word + s] = default
-
-    block = ModbusSparseDataBlock(word_map)
-    log.info(
-        f"  SparseBlock [{name}]: "
-        f"{len(logical_addresses)} indirizzi logici, "
-        f"{len(word_map) - n_sentinels} word reali + {n_sentinels} sentinelle — "
-        f"range reale [{min(word_map):>6} … {max_word:>6}]"
-    )
-    return TracingDataBlock(name, block)
-
-# ──────────────────────────────────────────────────────────────────────────────
-# TASK: VARIAZIONI RANDOM  ← NUOVO
-# ──────────────────────────────────────────────────────────────────────────────
-
-async def random_changes(
-    co_block: TracingDataBlock,
-    hr_block: TracingDataBlock,
-    co_addresses: List[int],
-    hr_addresses: List[int],
-) -> None:
-    """
-    Genera variazioni random su tutti i registri (RO e RW) a intervalli
-    definiti da CHANGE_INTERVAL.
-
-    Logica:
-      - Seleziona una frazione CHANGE_RATIO degli indirizzi disponibili.
-      - Coil: con probabilità COIL_FLIP_PROB inverte il bit corrente.
-      - HR 32-bit: valore random in [0, 0xFFFF_FFFF] con range ristretto
-        per valori semantici (es. programmi in [100, 399]).
-    """
-    log.info(
-        f"🎲 RandomChanger avviato — "
-        f"intervallo={CHANGE_INTERVAL}s, "
-        f"ratio={CHANGE_RATIO:.0%}, "
-        f"coil_flip={COIL_FLIP_PROB:.0%}"
-    )
-
+def simulation_loop():
+    """Loop che aggiorna i dati a intervalli regolari."""
+    global battery
     while True:
-        await asyncio.sleep(CHANGE_INTERVAL)
-        ts = datetime.now().strftime("%H:%M:%S")
+        # Movimento casuale
+        x = random.uniform(-5.0, 5.0)
+        y = random.uniform(-5.0, 5.0)
+        z = random.uniform(0.0, 3.0)
+        speed = random.uniform(0.0, 2.5)
+        temp = random.uniform(20.0, 75.0)
+        # Simula scarica e ricarica batteria
+        if status != 2:  # Se non in errore
+            battery -= random.uniform(0.0, 0.3)
+            if battery < 10.0:
+                battery += random.uniform(0.0, 0.5)  # ricarica lenta
+        battery = max(0.0, min(100.0, battery))
+        charge = random.uniform(0.0, 10.0) if battery < 30.0 else 0.0
+        status = random.choices([0, 1, 2], weights=[0.1, 0.85, 0.05])[0]
 
-        # ── Variazioni COIL ──────────────────────────────────────────────────
-        if co_addresses:
-            n_co = max(1, int(len(co_addresses) * CHANGE_RATIO))
-            selected_co = random.sample(co_addresses, n_co)
-            for addr in selected_co:
-                if random.random() < COIL_FLIP_PROB:
-                    try:
-                        current = co_block.datablock.getValues(addr, 1)[0]
-                        new_val = 0 if current else 1
-                        co_block.setValues(addr, [new_val])
-                    except Exception as e:
-                        log.warning(f"  RandomChanger coil @{addr}: {e}")
+        # Scrittura nei registri
+        set_float_register(REG_MAP['robot_x'], x)
+        set_float_register(REG_MAP['robot_y'], y)
+        set_float_register(REG_MAP['robot_z'], z)
+        set_float_register(REG_MAP['robot_speed'], speed)
+        set_float_register(REG_MAP['robot_temp'], temp)
+        set_float_register(REG_MAP['robot_battery'], battery)
+        set_float_register(REG_MAP['robot_charge'], charge)
+        set_int_register(REG_MAP['robot_status'], status)
 
-        # ── Variazioni HR 32-bit ─────────────────────────────────────────────
-        if hr_addresses:
-            n_hr = max(1, int(len(hr_addresses) * CHANGE_RATIO))
-            selected_hr = random.sample(hr_addresses, n_hr)
-            for addr in selected_hr:
-                try:
-                    # Genera valore random nel range plausibile per il registro.
-                    # I registri noti per programmi usano range [100, 399],
-                    # gli altri usano [0, 9999] come contatori/stati plausibili.
-                    if 10100 <= addr <= 10104:
-                        # Programmi stazione 1-3: 100-399
-                        new_val = random.randint(100, 399)
-                    elif addr in range(10000, 10100):
-                        # Contatori produzione RO: variazioni incrementali
-                        words   = hr_block.datablock.getValues(addr, 2)
-                        current = (words[0] << 16) | words[1]
-                        # Incremento random piccolo per simulare contatore
-                        new_val = min(current + random.randint(0, 5), 0xFFFF_FFFF)
-                    else:
-                        new_val = random.randint(0, 9999)
+        time.sleep(UPDATE_INTERVAL)
 
-                    msw = (new_val >> 16) & 0xFFFF
-                    lsw =  new_val        & 0xFFFF
-                    hr_block.setValues(addr, [msw, lsw])
-                except Exception as e:
-                    log.warning(f"  RandomChanger HR @{addr}: {e}")
+# --- Server Modbus TCP (su thread separato) ---
+def start_modbus_server():
+    """Avvia il server Modbus TCP."""
+    server = ModbusServer(host=SERVER_HOST, port=SERVER_PORT, data_bank=data_bank)
+    print(f"Avvio server Modbus TCP su {SERVER_HOST}:{SERVER_PORT}")
+    server.start()
 
-        log.debug(f"[{ts}] 🎲 Ciclo variazioni completato")
+# --- API REST (Flask) ---
+app = Flask(__name__)
 
-# ──────────────────────────────────────────────────────────────────────────────
-# MONITOR
-# ──────────────────────────────────────────────────────────────────────────────
+@app.route('/api/robot/data', methods=['GET'])
+def get_robot_data():
+    """Restituisce tutti i dati del robot in formato JSON (float leggibili)."""
+    data = {}
+    for name, addr in REG_MAP.items():
+        if name == 'robot_status':
+            data[name] = get_int_register(addr)
+        else:
+            data[name] = get_float_register(addr)
+    return jsonify(data)
 
-async def monitor(
-    blocks: Dict[str, TracingDataBlock],
-    logical: Dict[str, List[int]],
-) -> None:
-    word_step_map = {"co": 1, "hr": 2, "di": 1, "ir": 1}
-    while True:
-        await asyncio.sleep(MONITOR_INTERVAL)
-        ts    = datetime.now().strftime("%H:%M:%S")
-        total = TracingDataBlock.total_writes
-        log.info(f"[{ts}] ── DUMP SERVER  (scritture totali: {total}) ──────────")
-        for rtype, block in blocks.items():
-            addrs = logical.get(rtype, [])
-            if not addrs:
-                continue
-            step = word_step_map.get(rtype, 1)
-            icon = _ICONS.get(rtype, "❓")
-            log.info(f"  {icon}  {len(addrs)} addr logici | {block._writes} scritture")
-            for line in block.dump(addrs, word_step=step):
-                log.info(line)
-        log.info(f"[{ts}] ── FINE DUMP ───────────────────────────────────────────")
+@app.route('/api/robot/data/<register>', methods=['GET'])
+def get_register_data(register):
+    """Restituisce un singolo registro in formato JSON."""
+    if register not in REG_MAP:
+        return jsonify({'error': 'Registro non trovato'}), 404
+    addr = REG_MAP[register]
+    if register == 'robot_status':
+        value = get_int_register(addr)
+    else:
+        value = get_float_register(addr)
+    return jsonify({register: value})
 
-# ──────────────────────────────────────────────────────────────────────────────
-# AVVIO
-# ──────────────────────────────────────────────────────────────────────────────
+@app.route('/api/robot/data/<register>', methods=['POST'])
+def set_register_data(register):
+    """Imposta un registro (per test). Richiede JSON con 'value'."""
+    if register not in REG_MAP:
+        return jsonify({'error': 'Registro non trovato'}), 404
+    data = request.get_json()
+    if 'value' not in data:
+        return jsonify({'error': 'Campo "value" mancante'}), 400
+    addr = REG_MAP[register]
+    if register == 'robot_status':
+        set_int_register(addr, int(data['value']))
+    else:
+        set_float_register(addr, float(data['value']))
+    return jsonify({'status': 'ok', 'register': register, 'value': data['value']})
 
-async def run_server() -> None:
-    log.info("=" * 65)
-    log.info("🛠️  SERVER MODBUS TCP DI TEST — con variazioni random")
-    log.info("=" * 65)
+@app.route('/api/health', methods=['GET'])
+def health_check():
+    """Endpoint per il health check."""
+    return jsonify({'status': 'running'})
 
-    by_type = _load_registers(REGISTERS_PATH)
+def start_rest_server():
+    """Avvia il server REST Flask."""
+    print(f"Avvio server REST su http://{SERVER_HOST}:{REST_PORT}")
+    app.run(host=SERVER_HOST, port=REST_PORT, debug=False, threaded=True)
 
-    co_block = _make_sparse_block(by_type.get("co", []), word_step=1, name="co")
-    hr_block = _make_sparse_block(by_type.get("hr", []), word_step=2, name="hr")
-    di_block = _make_sparse_block(by_type.get("di", []), word_step=1, name="di")
-    ir_block = _make_sparse_block(by_type.get("ir", []), word_step=1, name="ir")
+# --- Avvio Principale ---
+if __name__ == '__main__':
+    print("=== Modbus IEEE 754 Server ===")
 
-    blocks  = {"co": co_block, "hr": hr_block, "di": di_block, "ir": ir_block}
-    logical = by_type
+    # Avvia il thread per la simulazione
+    sim_thread = threading.Thread(target=simulation_loop, daemon=True)
+    sim_thread.start()
 
-    context = ModbusServerContext(
-        ModbusDeviceContext(co=co_block, hr=hr_block, di=di_block, ir=ir_block),
-        single=True,
-    )
+    # Avvia il server Modbus in un thread separato
+    modbus_thread = threading.Thread(target=start_modbus_server, daemon=True)
+    modbus_thread.start()
 
-    log.info(f"🚀 Server in ascolto su {TEST_HOST}:{TEST_PORT}")
-    log.info(f"🎲 Variazioni random ogni {CHANGE_INTERVAL}s (ratio={CHANGE_RATIO:.0%})")
-    log.info("=" * 65)
-
-    monitor_task = asyncio.create_task(monitor(blocks, logical))
-    changer_task = asyncio.create_task(
-        random_changes(
-            co_block, hr_block,
-            by_type.get("co", []),
-            by_type.get("hr", []),
-        )
-    )
-
-    try:
-        await StartAsyncTcpServer(context, address=(TEST_HOST, TEST_PORT))
-    finally:
-        monitor_task.cancel()
-        changer_task.cancel()
-        for t in [monitor_task, changer_task]:
-            try:
-                await t
-            except asyncio.CancelledError:
-                pass
-        log.info("🛑 Server fermato")
-
-if __name__ == "__main__":
-    try:
-        asyncio.run(run_server())
-    except KeyboardInterrupt:
-        pass
+    # Avvia il server REST (bloccante, in esecuzione sul thread principale)
+    start_rest_server()
