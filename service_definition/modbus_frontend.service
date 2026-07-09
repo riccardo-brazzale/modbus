@@ -1,0 +1,18 @@
+[Unit]
+Description=Frontend Modbus Flask App
+After=modbus_gateway.service
+Requires=modbus_gateway.service
+
+[Service]
+User=modbus
+Group=mosbus
+WorkingDirectory=/opt/modbus/modbus_frontend
+Environment="PATH=/opt/modbus_frontend/.venv/bin"
+ExecStart=/opt/modbus/modbus_frontend/.venv/bin/gunicorn -w 1 -k gthread --threads 4 -b 0.0.0.0:8000 app:app
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

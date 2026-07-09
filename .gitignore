@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Virtual environment
+venv/
+.venv/
+
+# Log
+logs/
+*.log
+
+# VS Code
+.vscode/
+
+# JetBrains
+.idea/
+
+# File temporanei
+*.tmp
+*.bak
+
+# Sistema operativo
+.DS_Store
+Thumbs.db
+desktop.ini
+
+#Escludi:
+config.ini

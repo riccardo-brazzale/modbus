@@ -1,0 +1,21 @@
+[database]
+host = 
+user = 
+password = 
+database = 
+base_table_in = command
+base_table_out = history
+
+[logging]
+log_dir = logs
+level = INFO
+retention_days = 7
+
+[modbus_server]
+# Ip del robot
+ip = xxx.yyy.zzz.www
+# Porta in ascolto sul robot
+port = 8001
+timeout = 3
+poll_interval = 0.1
+write_interval = 0.1

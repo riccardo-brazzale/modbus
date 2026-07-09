@@ -1,0 +1,15 @@
+[Unit]
+Description=Servizio Modbus Gateway
+After=network.target mariadb.service
+Requires=mariadb.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/modbus/modbus-gateway
+ExecStart=/opt/modbus/modbus-gateway/.venv/bin/python /opt/modbus/modbus-gateway/main.py
+Restart=no
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

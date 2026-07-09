@@ -1,0 +1,11 @@
+[database]
+host = 
+user = 
+password = 
+database = modbus_db
+base_table_in = command
+base_table_out = history
+
+[modbus_server]
+ip = 127.0.0.1
+port = 8001

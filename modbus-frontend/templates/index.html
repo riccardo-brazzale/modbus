@@ -1,0 +1,1907 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MODBUS CONTROL SYSTEM — {{ server_ip }}:{{ server_port }}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow+Condensed:wght@300;400;600;700;900&family=Barlow:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+/* ═══════════════════════════════════════════════════════
+   RESET & ROOT — TEMA CHIARO INDUSTRIALE
+═══════════════════════════════════════════════════════ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:         #f0f2f5;
+  --bg2:        #ffffff;
+  --bg3:        #f8fafc;
+  --bg4:        #eef2f6;
+  --border:     #cbd5e1;
+  --border2:    #94a3b8;
+
+  --amber:      #d97706;
+  --amber-dim:  #fbbf24;
+  --amber-glow: rgba(217,119,6,0.1);
+  --cyan:       #0e7b9e;
+  --cyan-dim:   #7dd3fc;
+  --cyan-glow:  rgba(14,123,158,0.08);
+  --green:      #10b981;
+  --green-dim:  #a7f3d0;
+  --red:        #dc2626;
+  --red-dim:    #fee2e2;
+  --yellow:     #f59e0b;
+
+  --text-bright: #1a2b3c;
+  --text-mid:    #33475b;
+  --text-dim:    #64748b;
+
+  --mono: 'Share Tech Mono', monospace;
+  --display: 'Barlow Condensed', sans-serif;
+  --body: 'Barlow', sans-serif;
+
+  --header-h: 72px;
+  --tab-h: 48px;
+  --radius: 4px;
+  --transition: 150ms ease;
+}
+
+html, body {
+  height: 100%;
+  background: var(--bg);
+  color: var(--text-bright);
+  font-family: var(--body);
+  font-size: 13px;
+  overflow: hidden;
+}
+
+/* ═══════════════════════════════════════════════════════
+   HEADER
+═══════════════════════════════════════════════════════ */
+#header {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  height: var(--header-h);
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 32px;
+  padding: 0 24px;
+  z-index: 100;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.02);
+}
+
+.hdr-brand {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.hdr-logo {
+  width: 36px; height: 36px;
+  border: 1.5px solid var(--amber);
+  display: flex; align-items: center; justify-content: center;
+  position: relative;
+  transform: rotate(45deg);
+}
+.hdr-logo::before {
+  content: '';
+  position: absolute; inset: 4px;
+  border: 1px solid var(--amber-dim);
+}
+.hdr-logo-inner {
+  width: 8px; height: 8px;
+  background: var(--amber);
+  transform: rotate(-45deg);
+}
+
+.hdr-title {
+  font-family: var(--display);
+  font-weight: 900;
+  font-size: 20px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--text-bright);
+  line-height: 1;
+}
+.hdr-subtitle {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--amber);
+  letter-spacing: 2px;
+  margin-top: 3px;
+}
+
+/* Server info pills */
+.hdr-info {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  justify-content: center;
+}
+
+.info-pill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.info-pill .lbl {
+  font-family: var(--display);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 2px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+}
+.info-pill .val {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--cyan);
+}
+
+/* Status indicator */
+.hdr-status {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.status-dot {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  background: var(--green);
+  box-shadow: 0 0 4px var(--green);
+  animation: pulse-status 2s ease-in-out infinite;
+}
+.status-dot.offline {
+  background: var(--red);
+  box-shadow: 0 0 4px var(--red);
+  animation: none;
+}
+@keyframes pulse-status {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.5; }
+}
+
+.status-label {
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--green);
+}
+.status-label.offline { color: var(--red); }
+
+#last-update {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-dim);
+}
+
+/* ═══════════════════════════════════════════════════════
+   TAB BAR
+═══════════════════════════════════════════════════════ */
+#tabbar {
+  position: fixed;
+  top: var(--header-h);
+  left: 0; right: 0;
+  height: var(--tab-h);
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  z-index: 99;
+  padding: 0 24px;
+}
+
+.tab-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 24px;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-family: var(--display);
+  font-weight: 600;
+  font-size: 12px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  transition: var(--transition);
+}
+.tab-btn:hover { color: var(--text-mid); }
+.tab-btn.active {
+  color: var(--amber);
+  border-bottom-color: var(--amber);
+}
+
+.tab-count {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  padding: 1px 6px;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-dim);
+  min-width: 28px;
+  text-align: center;
+}
+.tab-btn.active .tab-count {
+  border-color: var(--amber-dim);
+  color: var(--amber);
+}
+
+/* ═══════════════════════════════════════════════════════
+   MAIN LAYOUT
+═══════════════════════════════════════════════════════ */
+#main {
+  position: fixed;
+  top: calc(var(--header-h) + var(--tab-h));
+  left: 0; right: 0; bottom: 0;
+  display: flex;
+  overflow: hidden;
+}
+
+.tab-panel {
+  display: none;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+.tab-panel.active { display: flex; }
+
+/* ═══════════════════════════════════════════════════════
+   PANEL LAYOUT (content + sidebar)
+═══════════════════════════════════════════════════════ */
+.panel-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px 24px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border2) transparent;
+}
+.panel-content::-webkit-scrollbar { width: 4px; }
+.panel-content::-webkit-scrollbar-thumb { background: var(--border2); }
+
+.panel-sidebar {
+  width: 280px;
+  flex-shrink: 0;
+  background: var(--bg2);
+  border-left: 1px solid var(--border);
+  overflow-y: auto;
+  padding: 16px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border2) transparent;
+}
+
+/* ═══════════════════════════════════════════════════════
+   TOOLBAR
+═══════════════════════════════════════════════════════ */
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+
+.toolbar-label {
+  font-family: var(--display);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 2px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+}
+
+.ctrl-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+input[type="range"] {
+  -webkit-appearance: none;
+  width: 100px; height: 4px;
+  background: var(--border2);
+  border-radius: 2px;
+  cursor: pointer;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 12px; height: 12px;
+  border-radius: 50%;
+  background: var(--amber);
+}
+
+.val-display {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--amber);
+  min-width: 45px;
+}
+
+.btn {
+  display: flex; align-items: center; gap: 6px;
+  padding: 7px 16px;
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  color: var(--text-mid);
+  cursor: pointer;
+  font-family: var(--display);
+  font-weight: 600;
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  border-radius: var(--radius);
+  transition: var(--transition);
+  white-space: nowrap;
+}
+.btn:hover {
+  border-color: var(--amber);
+  color: var(--amber);
+  background: var(--amber-glow);
+}
+.btn.primary {
+  background: var(--amber);
+  border-color: var(--amber);
+  color: white;
+  font-weight: 700;
+}
+.btn.primary:hover {
+  background: #b45309;
+}
+.btn.btn-send {
+  background: var(--amber);
+  border-color: var(--amber);
+  color: white;
+  font-weight: 900;
+  font-size: 12px;
+  letter-spacing: 2px;
+  padding: 8px 24px;
+}
+
+.ml-auto { margin-left: auto; }
+
+/* ═══════════════════════════════════════════════════════
+   SECTION HEADER
+═══════════════════════════════════════════════════════ */
+.section-hdr {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.section-hdr h2 {
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--text-mid);
+}
+.section-hdr .sep {
+  flex: 1; height: 1px;
+  background: linear-gradient(90deg, var(--border), transparent);
+}
+
+/* ═══════════════════════════════════════════════════════
+   REGISTER GRID
+═══════════════════════════════════════════════════════ */
+.reg-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 8px;
+}
+
+.reg-card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 14px;
+  position: relative;
+  overflow: hidden;
+  transition: border-color 200ms, background 200ms;
+}
+.reg-card::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 3px;
+  background: var(--border2);
+  transition: background 200ms;
+}
+
+.reg-card[data-type="co"]::before  { background: var(--cyan-dim); }
+.reg-card[data-type="hr"]::before  { background: var(--amber-dim); }
+
+.reg-card.changed {
+  animation: card-bang 1.6s ease-out forwards;
+  z-index: 2;
+  position: relative;
+}
+.reg-card.changed::before { background: #e53e00 !important; box-shadow: 0 0 8px #e53e00; }
+
+@keyframes card-bang {
+  0%   { background: #ff4400; border-color: #ff4400; box-shadow: 0 0 0 4px #ff4400, 0 0 28px rgba(255,68,0,0.7); transform: scale(1.04); }
+  8%   { background: #ff6600; border-color: #ff4400; box-shadow: 0 0 0 4px #ff4400, 0 0 28px rgba(255,68,0,0.7); transform: scale(1.04); }
+  18%  { background: #fff3cd; border-color: #f59e0b; box-shadow: 0 0 0 2px #f59e0b, 0 0 16px rgba(245,158,11,0.5); transform: scale(1.0); }
+  40%  { background: #fff3cd; border-color: #f59e0b; box-shadow: 0 0 12px rgba(245,158,11,0.3); }
+  100% { background: var(--bg2); border-color: var(--border); box-shadow: none; }
+}
+
+/* Valore che flashа in rosso/arancio durante il cambio */
+.reg-card.changed .reg-value {
+  animation: value-pop 0.4s ease-out forwards;
+}
+@keyframes value-pop {
+  0%   { color: #fff; transform: scale(1.18); text-shadow: 0 0 12px rgba(255,255,255,0.9); }
+  30%  { color: #ff4400; transform: scale(1.12); }
+  60%  { color: #f59e0b; transform: scale(1.04); }
+  100% { color: inherit; transform: scale(1); text-shadow: none; }
+}
+
+.reg-addr {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-dim);
+  margin-bottom: 4px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.type-badge {
+  font-family: var(--mono);
+  font-size: 9px;
+  padding: 1px 5px;
+  border-radius: 2px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+.type-badge.co {
+  background: #e0f2fe;
+  color: #0369a1;
+  border: 1px solid #bae6fd;
+}
+.type-badge.hr {
+  background: #ffedd5;
+  color: #b45309;
+  border: 1px solid #fed7aa;
+}
+.type-badge.float-badge {
+  background: #e6fffa;
+  color: #047857;
+  border: 1px solid #a7f3d0;
+  margin-left: 4px;
+}
+
+.reg-name {
+  font-family: var(--display);
+  font-weight: 600;
+  font-size: 13px;
+  letter-spacing: 1px;
+  color: var(--text-bright);
+  margin-bottom: 2px;
+}
+
+.reg-desc {
+  font-size: 11px;
+  color: var(--text-dim);
+  min-height: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 8px;
+}
+
+.reg-value {
+  font-family: var(--mono);
+  font-size: 22px;
+  font-weight: bold;
+  color: var(--text-bright);
+  letter-spacing: -0.5px;
+  line-height: 1;
+  transition: color 200ms;
+}
+.reg-card[data-type="co"] .reg-value {
+  color: var(--green);
+  font-size: 18px;
+}
+
+.reg-ts {
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--text-dim);
+  margin-top: 6px;
+}
+
+/* ═══════════════════════════════════════════════════════
+   RW TABLE (TAB 2)
+═══════════════════════════════════════════════════════ */
+.rw-table-wrap {
+  overflow-x: auto;
+}
+
+table.rw-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+table.rw-table thead th {
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 10px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  text-align: left;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg2);
+  white-space: nowrap;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+table.rw-table tbody tr {
+  border-bottom: 1px solid var(--border);
+  transition: background 200ms;
+}
+table.rw-table tbody tr:hover { background: var(--bg3); }
+table.rw-table tbody tr.changed {
+  animation: flash-row 1.4s ease-out forwards;
+}
+@keyframes flash-row {
+  0%   { background: #00c853; outline: 3px solid #00c853; box-shadow: inset 0 0 0 9999px rgba(0,200,83,0.25), 0 0 24px rgba(0,200,83,0.5); }
+  10%  { background: rgba(0,200,83,0.22); outline: 3px solid #00c853; }
+  30%  { background: rgba(0,200,83,0.12); outline: 2px solid rgba(0,200,83,0.5); box-shadow: none; }
+  60%  { background: rgba(0,200,83,0.06); outline: none; }
+  100% { background: transparent; }
+}
+
+/* Fa saltare il valore nella colonna "Valore Attuale" */
+.td-cur.val-changed {
+  animation: val-pop 0.5s ease-out forwards;
+}
+@keyframes val-pop {
+  0%   { color: #00c853; transform: scale(1.22); text-shadow: 0 0 10px rgba(0,200,83,0.8); font-weight: 900; }
+  40%  { color: #00a040; transform: scale(1.10); }
+  100% { color: var(--cyan); transform: scale(1); text-shadow: none; font-weight: normal; }
+}
+
+table.rw-table tbody td {
+  padding: 8px 12px;
+  vertical-align: middle;
+}
+
+.td-addr { font-family: var(--mono); font-size: 11px; color: var(--text-dim); white-space: nowrap; }
+.td-name { font-family: var(--display); font-weight: 600; font-size: 13px; letter-spacing: 0.5px; }
+.td-desc { font-size: 11px; color: var(--text-dim); max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.td-cur  {
+  font-family: var(--mono);
+  font-size: 14px;
+  color: var(--cyan);
+  white-space: nowrap;
+  min-width: 90px;
+}
+
+.td-input { min-width: 140px; }
+.td-input input {
+  width: 100%;
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  color: var(--text-bright);
+  font-family: var(--mono);
+  font-size: 13px;
+  padding: 6px 10px;
+  border-radius: var(--radius);
+  outline: none;
+  transition: border-color var(--transition);
+}
+.td-input input:focus {
+  border-color: var(--amber);
+}
+.td-input input.dirty {
+  border-color: var(--yellow);
+  background: #fffbeb;
+}
+.td-input input.error-input {
+  border-color: var(--red);
+  background: #fee2e2;
+}
+
+.td-status { width: 24px; }
+.row-status {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: transparent;
+  display: inline-block;
+}
+.row-status.pending  { background: var(--yellow); }
+.row-status.success  { background: var(--green);  }
+.row-status.error    { background: var(--red);    }
+
+/* Badge per comandi in coda */
+.dirty-badge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 6px;
+  background: #fef3c7;
+  color: #b45309;
+  font-family: var(--mono);
+  font-size: 9px;
+  border-radius: 12px;
+  border: 1px solid #fbbf24;
+  letter-spacing: 0.5px;
+  vertical-align: middle;
+}
+
+tr.has-dirty {
+  border-left: 3px solid var(--yellow) !important;
+  background: #fffbeb;
+}
+
+/* ═══════════════════════════════════════════════════════
+   SIDEBAR
+═══════════════════════════════════════════════════════ */
+.sidebar-block {
+  margin-bottom: 20px;
+}
+.sidebar-hdr {
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 10px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-bottom: 10px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+/* Stats grid */
+.stats-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+.stat-cell {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px 10px;
+  text-align: center;
+}
+.stat-num {
+  font-family: var(--mono);
+  font-size: 20px;
+  color: var(--amber);
+  line-height: 1;
+}
+.stat-lbl {
+  font-family: var(--display);
+  font-size: 9px;
+  letter-spacing: 1.5px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  margin-top: 3px;
+}
+
+/* Change feed */
+.change-feed {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+.change-feed::-webkit-scrollbar { width: 3px; }
+.change-feed::-webkit-scrollbar-thumb { background: var(--border2); }
+
+.change-item {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 6px 10px;
+  border-left: 2px solid var(--amber);
+  animation: slide-in 300ms ease-out;
+}
+@keyframes slide-in {
+  from { opacity: 0; transform: translateX(8px); }
+  to   { opacity: 1; transform: none; }
+}
+
+.change-addr {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--amber);
+}
+.change-vals {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-bright);
+  margin-top: 2px;
+}
+.change-ts {
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--text-dim);
+  margin-top: 2px;
+}
+
+/* Activity bar mini chart */
+.activity-chart {
+  height: 60px;
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  margin-top: 4px;
+}
+.activity-bar {
+  flex: 1;
+  background: var(--amber-dim);
+  border-radius: 2px 2px 0 0;
+  min-height: 2px;
+  transition: background 300ms;
+  position: relative;
+}
+.activity-bar:hover {
+  background: var(--amber);
+}
+.activity-bar:hover::after {
+  content: attr(data-val);
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  color: var(--text-bright);
+  font-family: var(--mono);
+  font-size: 9px;
+  padding: 2px 5px;
+  border-radius: 2px;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* ═══════════════════════════════════════════════════════
+   TAB 3 — HISTORY
+═══════════════════════════════════════════════════════ */
+.history-table-wrap { overflow-x: auto; }
+table.history-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+table.history-table thead th {
+  font-family: var(--display);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  text-align: left;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg2);
+  white-space: nowrap;
+  position: sticky; top: 0; z-index: 10;
+}
+table.history-table tbody tr { border-bottom: 1px solid var(--border); }
+table.history-table tbody tr:hover { background: var(--bg3); }
+table.history-table tbody td { padding: 7px 12px; vertical-align: middle; }
+.op-badge {
+  display: inline-block;
+  padding: 2px 7px;
+  border-radius: 2px;
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: bold;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+}
+.op-badge.READ  { background: #e0f2fe;  color: #0369a1; border: 1px solid #bae6fd; }
+.op-badge.WRITE { background: #ffedd5;  color: #b45309; border: 1px solid #fed7aa; }
+
+/* ═══════════════════════════════════════════════════════
+   TOAST NOTIFICATIONS
+═══════════════════════════════════════════════════════ */
+#toasts {
+  position: fixed;
+  bottom: 20px; right: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 999;
+  pointer-events: none;
+}
+.toast {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius);
+  padding: 10px 16px;
+  font-family: var(--display);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  animation: toast-in 300ms ease-out;
+  max-width: 360px;
+  pointer-events: auto;
+}
+.toast.success { border-left: 3px solid var(--green); color: var(--text-bright); }
+.toast.error   { border-left: 3px solid var(--red);   color: var(--red); }
+.toast.info    { border-left: 3px solid var(--cyan);  color: var(--text-bright); }
+@keyframes toast-in {
+  from { opacity: 0; transform: translateX(20px); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes toast-out {
+  to { opacity: 0; transform: translateX(20px); }
+}
+
+/* ═══════════════════════════════════════════════════════
+   LOADING / EMPTY STATES
+═══════════════════════════════════════════════════════ */
+.loading-state, .empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  color: var(--text-dim);
+  gap: 12px;
+}
+.loading-state .spinner {
+  width: 32px; height: 32px;
+  border: 2px solid var(--border2);
+  border-top-color: var(--amber);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ═══════════════════════════════════════════════════════
+   SEND SUMMARY BAR
+═══════════════════════════════════════════════════════ */
+.send-bar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 16px;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+.send-bar-info {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-mid);
+  flex: 1;
+}
+#pending-count {
+  font-family: var(--mono);
+  font-size: 16px;
+  color: var(--amber);
+  font-weight: bold;
+}
+.send-bar .error-summary {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--red);
+}
+
+/* Coil toggle */
+.coil-toggle {
+  display: flex;
+  gap: 4px;
+}
+.coil-btn {
+  padding: 4px 10px;
+  font-family: var(--mono);
+  font-size: 11px;
+  border-radius: 2px;
+  cursor: pointer;
+  border: 1px solid var(--border2);
+  background: var(--bg2);
+  color: var(--text-dim);
+  transition: var(--transition);
+}
+.coil-btn.on:hover, .coil-btn.on.active  { background: var(--green-dim); border-color: var(--green); color: var(--green); }
+.coil-btn.off:hover, .coil-btn.off.active { background: var(--red-dim); border-color: var(--red); color: var(--red); }
+
+/* ═══════════════════════════════════════════════════════
+   FILTER INPUT
+═══════════════════════════════════════════════════════ */
+.filter-input {
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  color: var(--text-bright);
+  font-family: var(--mono);
+  font-size: 11px;
+  padding: 6px 12px;
+  border-radius: var(--radius);
+  outline: none;
+  width: 180px;
+  transition: border-color var(--transition);
+}
+.filter-input:focus { border-color: var(--amber); }
+.filter-input::placeholder { color: var(--text-dim); }
+
+/* ═══════════════════════════════════════════════════════
+   SCROLLBAR GLOBAL
+═══════════════════════════════════════════════════════ */
+* { scrollbar-width: thin; scrollbar-color: var(--border2) transparent; }
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+/* ═══════════════════════════════════════════════════════
+   LIVE MODE INDICATOR
+═══════════════════════════════════════════════════════ */
+.live-badge {
+  display: flex; align-items: center; gap: 5px;
+  font-family: var(--display);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  color: var(--green);
+  text-transform: uppercase;
+}
+.live-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--green);
+  box-shadow: 0 0 4px var(--green);
+  animation: pulse-status 1s ease-in-out infinite;
+}
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════ HEADER ══════════════════════ -->
+<header id="header">
+  <div class="hdr-brand">
+    <div class="hdr-logo"><div class="hdr-logo-inner"></div></div>
+    <div>
+      <div class="hdr-title">Modbus Monitor</div>
+      <div class="hdr-subtitle">Industrial Control Interface</div>
+    </div>
+  </div>
+
+  <div class="hdr-info">
+    <div class="info-pill">
+      <span class="lbl">Update</span>
+      <span class="val" id="last-update">—</span>
+    </div>
+  </div>
+
+  <div class="hdr-status">
+    <div class="status-dot" id="status-dot"></div>
+    <div class="status-label" id="status-label">ONLINE</div>
+  </div>
+</header>
+
+<!-- ══════════════════════ TABBAR ══════════════════════ -->
+<nav id="tabbar">
+  <button class="tab-btn active" onclick="switchTab('rw')">
+    ✏️ Writable Registers <span class="tab-count" id="cnt-rw">0</span>
+  </button>
+  <button class="tab-btn" onclick="switchTab('ro')">
+    🔒 Read-Only Registers <span class="tab-count" id="cnt-ro">0</span>
+  </button>
+  <button class="tab-btn" onclick="switchTab('history')">
+    📋 History Log <span class="tab-count" id="cnt-hist">—</span>
+  </button>
+
+  <div style="margin-left: auto; display: flex; align-items: center; padding-right: 8px;">
+    <div class="live-badge"><div class="live-dot"></div> LIVE</div>
+  </div>
+</nav>
+
+<!-- ══════════════════════ MAIN ══════════════════════ -->
+<main id="main">
+
+  <!-- ─── TAB 1: READ-ONLY ─── -->
+  <div class="tab-panel" id="panel-ro">
+    <div class="panel-content">
+      <!-- Toolbar -->
+      <div class="toolbar">
+        <span class="toolbar-label">Poll Interval</span>
+        <div class="ctrl-group">
+          <input type="range" id="poll-interval" min="200" max="2000" step="100" value="500">
+          <span class="val-display" id="poll-display">500ms</span>
+        </div>
+        <span class="toolbar-label" style="margin-left:12px">Highlight Duration</span>
+        <div class="ctrl-group">
+          <input type="range" id="highlight-duration" min="300" max="3000" step="100" value="800">
+          <span class="val-display" id="highlight-display">800ms</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;margin-left:auto">
+          <input type="text" class="filter-input" id="ro-filter" placeholder="Filtra per nome/addr…">
+          <button class="btn" onclick="toggleType()">
+            <span id="ro-type-btn">Mostra: TUTTI</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="section-hdr">
+        <h2>Registri Sola Lettura</h2>
+        <div class="sep"></div>
+      </div>
+
+      <div class="reg-grid" id="ro-grid">
+        <div class="loading-state"><div class="spinner"></div><span>Caricamento registri…</span></div>
+      </div>
+    </div>
+
+    <!-- Sidebar -->
+    <aside class="panel-sidebar">
+      <div class="sidebar-block">
+        <div class="sidebar-hdr">Stato Sistema</div>
+        <div class="stats-grid">
+          <div class="stat-cell">
+            <div class="stat-num" id="s-ro-total">0</div>
+            <div class="stat-lbl">RO Regs</div>
+          </div>
+          <div class="stat-cell">
+            <div class="stat-num" id="s-changes-min">0</div>
+            <div class="stat-lbl">∆/Cycle</div>
+          </div>
+          <div class="stat-cell">
+            <div class="stat-num" id="s-co-count">0</div>
+            <div class="stat-lbl">Coils</div>
+          </div>
+          <div class="stat-cell">
+            <div class="stat-num" id="s-hr-count">0</div>
+            <div class="stat-lbl">Hold. Reg</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sidebar-block">
+        <div class="sidebar-hdr">
+          Live Changes
+          <span style="font-family:var(--mono);font-size:10px;color:var(--amber)" id="change-total">0</span>
+        </div>
+        <div class="change-feed" id="change-feed"></div>
+      </div>
+
+      <div class="sidebar-block">
+        <div class="sidebar-hdr">Activity (last 30 cycles)</div>
+        <div class="activity-chart" id="activity-chart"></div>
+      </div>
+    </aside>
+  </div>
+
+  <!-- ─── TAB 2: WRITABLE ─── -->
+  <div class="tab-panel active" id="panel-rw">
+    <div class="panel-content">
+      <!-- Send bar -->
+      <div class="send-bar">
+        <div class="send-bar-info">
+          Campi modificati: <span id="pending-count">0</span>
+          <span class="error-summary" id="send-error-summary" style="display:none"></span>
+        </div>
+        <button class="btn" onclick="clearRwDirty()">Reset modifiche</button>
+        <button class="btn btn-send" onclick="sendCommands()">
+          ▶ INVIA COMANDI
+        </button>
+      </div>
+
+      <div class="toolbar">
+        <span class="toolbar-label">Auto-refresh</span>
+        <div class="ctrl-group">
+          <input type="range" id="rw-poll-interval" min="200" max="10000" step="100" value="500">
+          <span class="val-display" id="rw-poll-display">500ms</span>
+        </div>
+        <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+          <input type="text" class="filter-input" id="rw-filter" placeholder="Filtra…">
+        </div>
+      </div>
+
+      <div class="section-hdr">
+        <h2>Registri Scrivibili</h2>
+        <div class="sep"></div>
+      </div>
+
+      <div class="rw-table-wrap">
+        <table class="rw-table">
+          <thead>
+            <tr>
+              <th style="width:24px"></th>
+              <th>Indirizzo</th>
+              <th>Nome Robot</th>
+              <th>Descrizione</th>
+              <th>Tipo</th>
+              <th>Valore Attuale</th>
+              <th>Nuovo Valore</th>
+            </tr>
+          </thead>
+          <tbody id="rw-tbody">
+            <tr><td colspan="7"><div class="loading-state"><div class="spinner"></div><span>Caricamento…</span></div></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Sidebar RW -->
+    <aside class="panel-sidebar">
+      <div class="sidebar-block">
+        <div class="sidebar-hdr">Comandi in Coda</div>
+        <div class="stats-grid">
+          <div class="stat-cell">
+            <div class="stat-num" id="s-rw-total">0</div>
+            <div class="stat-lbl">RW Regs</div>
+          </div>
+          <div class="stat-cell">
+            <div class="stat-num" id="s-queued">0</div>
+            <div class="stat-lbl">In Coda</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sidebar-block">
+        <div class="sidebar-hdr">Statistiche modifiche</div>
+        <div class="stats-grid">
+          <div class="stat-cell">
+            <div class="stat-num" id="rw-stats-success">0</div>
+            <div class="stat-lbl">Scritture OK</div>
+          </div>
+          <div class="stat-cell">
+            <div class="stat-num" id="rw-stats-errors">0</div>
+            <div class="stat-lbl">Errori</div>
+          </div>
+          <div class="stat-cell">
+            <div class="stat-num" id="rw-stats-changes">0</div>
+            <div class="stat-lbl">Variazioni</div>
+          </div>
+          <div class="stat-cell">
+            <div class="stat-num" id="rw-stats-pending">0</div>
+            <div class="stat-lbl">In coda</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sidebar-block">
+        <div class="sidebar-hdr">Ultimi Comandi Inviati</div>
+        <div class="change-feed" id="sent-feed"></div>
+      </div>
+    </aside>
+  </div>
+
+  <!-- ─── TAB 3: HISTORY ─── -->
+  <div class="tab-panel" id="panel-history">
+    <div class="panel-content">
+      <div class="toolbar">
+        <span class="toolbar-label">Righe</span>
+        <select id="hist-limit" onchange="loadHistory()"
+          style="background:var(--bg2);border:1px solid var(--border2);color:var(--text-bright);padding:5px 10px;font-family:var(--mono);font-size:11px;border-radius:2px;outline:none">
+          <option value="50">50</option>
+          <option value="100">100</option>
+          <option value="200">200</option>
+          <option value="500">500</option>
+        </select>
+        <span class="toolbar-label">Operazione</span>
+        <select id="hist-op" onchange="loadHistory()"
+          style="background:var(--bg2);border:1px solid var(--border2);color:var(--text-bright);padding:5px 10px;font-family:var(--mono);font-size:11px;border-radius:2px;outline:none">
+          <option value="">TUTTE</option>
+          <option value="READ">READ</option>
+          <option value="WRITE">WRITE</option>
+        </select>
+        <input type="text" class="filter-input" id="hist-addr" placeholder="Filtra indirizzo…">
+        <button class="btn" onclick="loadHistory()">Aggiorna</button>
+        <button class="btn" id="hist-auto-btn" onclick="toggleHistAuto()">Auto OFF</button>
+      </div>
+
+      <div class="history-table-wrap">
+        <table class="history-table">
+          <thead>
+            <tr>
+              <th>Timestamp</th>
+              <th>Indirizzo</th>
+              <th>Nome Robot</th>
+              <th>Descrizione</th>
+              <th>Tipo</th>
+              <th>Valore</th>
+              <th>Accesso</th>
+              <th>Operazione</th>
+            </tr>
+          </thead>
+          <tbody id="hist-tbody">
+            <tr><td colspan="8"><div class="loading-state"><div class="spinner"></div></div></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</main>
+
+<!-- ══════════════════════ TOASTS ══════════════════════ -->
+<div id="toasts"></div>
+
+<script>
+/* ═══════════════════════════════════════════════════════
+   CORE STATE
+═══════════════════════════════════════════════════════ */
+const state = {
+  roData: {},         // addr → {value, type, ...}
+  rwData: {},         // addr → {value, type, ...}
+  dirtyFields: {},    // addr → newValue (for rw)
+  pollInterval: 500,
+  highlightDuration: 800,
+  rwPollInterval: 500,
+  activeTab: 'rw',
+  roFilter: '',
+  rwFilter: '',
+  roTypeFilter: 'all',
+  activityHistory: [],
+  histAutoRefresh: false,
+  rwStats: {
+    success: 0,
+    errors: 0,
+    changes: 0,
+    pending: 0
+  }
+};
+
+let roPollTimer = null;
+let rwPollTimer = null;
+let histTimer   = null;
+let changeFeedTimer = null;
+let statusTimer = null;
+
+/* ═══════════════════════════════════════════════════════
+   UTILS
+═══════════════════════════════════════════════════════ */
+const $ = id => document.getElementById(id);
+
+function fmt(v) {
+  if (v === null || v === undefined) return '—';
+  if (typeof v === 'number') {
+    if (Number.isInteger(v)) return v.toString();
+    return v.toFixed(5).replace(/\.?0+$/, "");
+  }
+  return String(v);
+}
+
+function fmtTs(iso) {
+  if (!iso) return '—';
+  try {
+    const d = new Date(iso);
+    return d.toLocaleTimeString('it-IT', {hour:'2-digit', minute:'2-digit', second:'2-digit'}) +
+           '.' + String(d.getMilliseconds()).padStart(3, '0');
+  } catch { return iso; }
+}
+
+function now() {
+  return new Date().toLocaleTimeString('it-IT', {hour:'2-digit', minute:'2-digit', second:'2-digit'});
+}
+
+function toast(msg, type = 'info', dur = 3000) {
+  const el = document.createElement('div');
+  el.className = `toast ${type}`;
+  el.innerHTML = msg;
+  $('toasts').prepend(el);
+  setTimeout(() => {
+    el.style.animation = 'toast-out 300ms ease-out forwards';
+    setTimeout(() => el.remove(), 300);
+  }, dur);
+}
+
+/* ═══════════════════════════════════════════════════════
+   TABS
+═══════════════════════════════════════════════════════ */
+function switchTab(name) {
+  state.activeTab = name;
+  document.querySelectorAll('.tab-btn').forEach((b, i) => {
+    const tabs = ['rw','ro','history'];
+    b.classList.toggle('active', tabs[i] === name);
+  });
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  $(`panel-${name}`).classList.add('active');
+
+  if (name === 'history') loadHistory();
+}
+
+/* ═══════════════════════════════════════════════════════
+   CONTROLS
+═══════════════════════════════════════════════════════ */
+$('poll-interval').addEventListener('input', e => {
+  state.pollInterval = +e.target.value;
+  $('poll-display').textContent = `${state.pollInterval}ms`;
+  restartRoPoll();
+});
+$('highlight-duration').addEventListener('input', e => {
+  state.highlightDuration = +e.target.value;
+  $('highlight-display').textContent = `${state.highlightDuration}ms`;
+});
+$('rw-poll-interval').addEventListener('input', e => {
+  state.rwPollInterval = +e.target.value;
+  $('rw-poll-display').textContent = `${state.rwPollInterval}ms`;
+  restartRwPoll();
+});
+$('ro-filter').addEventListener('input', e => {
+  state.roFilter = e.target.value.toLowerCase();
+  renderRoGrid();
+});
+$('rw-filter').addEventListener('input', e => {
+  state.rwFilter = e.target.value.toLowerCase();
+  renderRwTable();
+});
+
+let roTypeState = 'all';
+function toggleType() {
+  const types = ['all','co','hr'];
+  const idx = types.indexOf(roTypeState);
+  roTypeState = types[(idx+1) % types.length];
+  const labels = {all:'Mostra: TUTTI', co:'Mostra: COIL', hr:'Mostra: HR'};
+  $('ro-type-btn').textContent = labels[roTypeState];
+  renderRoGrid();
+}
+
+/* ═══════════════════════════════════════════════════════
+   STATUS POLL
+═══════════════════════════════════════════════════════ */
+async function pollStatus() {
+  try {
+    const r = await fetch('/api/status');
+    const d = await r.json();
+    const ok = d.db_connected;
+    $('status-dot').className = 'status-dot' + (ok ? '' : ' offline');
+    $('status-label').className = 'status-label' + (ok ? '' : ' offline');
+    $('status-label').textContent = ok ? 'ONLINE' : 'OFFLINE';
+    $('last-update').textContent = fmtTs(d.timestamp);
+
+    if (d.counts) {
+      const ro = d.counts['ro'] || 0;
+      const rw = d.counts['rw'] || 0;
+      $('s-ro-total').textContent = ro;
+      $('s-rw-total').textContent = rw;
+    }
+  } catch { /* silent */ }
+}
+
+/* ═══════════════════════════════════════════════════════
+   RO POLLING — CORRECTED LOGIC
+   BUG FIX: la versione precedente entrava sempre nel branch
+   renderRoGrid() (che ricreava le card da zero) a causa della
+   condizione (roData.length === d.data.length) sempre vera.
+   Di conseguenza updateCard() con changed=true non veniva mai
+   chiamato e il flash giallo non appariva mai.
+   Ora: primo caricamento → renderRoGrid(); poll successivi →
+   updateCard() su ogni registro, con changed=true solo per
+   gli indirizzi effettivamente variati.
+═══════════════════════════════════════════════════════ */
+async function pollRo() {
+  try {
+    const r = await fetch('/api/registers/ro');
+    const d = await r.json();
+    if (d.error) throw new Error(d.error);
+
+    const isFirstLoad = Object.keys(state.roData).length === 0;
+    const changedAddrs = [];
+    const newData = {};
+
+    for (const reg of d.data) {
+      const addr = reg.indirizzo_modbus;
+      newData[addr] = reg;
+      if (!isFirstLoad) {
+        const oldVal = state.roData[addr]?.valore;
+        if (oldVal !== undefined && oldVal !== reg.valore) {
+          changedAddrs.push(addr);
+        }
+      }
+    }
+
+    state.roData = newData;
+
+    if (isFirstLoad) {
+      // Primo caricamento: costruisci tutte le card da zero
+      renderRoGrid();
+      updateRoStats();
+    } else {
+      // Poll successivi: aggiorna in-place ogni card esistente.
+      // changed=true solo per gli addr effettivamente variati → flash giallo.
+      for (const [addr, reg] of Object.entries(state.roData)) {
+        const card = document.querySelector(`.reg-card[data-addr="${addr}"]`);
+        if (card) {
+          updateCard(card, reg, changedAddrs.includes(addr));
+        }
+      }
+      updateRoStats();
+    }
+
+    // Aggiorna sidebar e activity chart
+    if (changedAddrs.length > 0) {
+      addToChangeFeed(changedAddrs, d.data);
+      $('s-changes-min').textContent = changedAddrs.length;
+    } else {
+      $('s-changes-min').textContent = '0';
+    }
+
+    state.activityHistory.push(changedAddrs.length);
+    if (state.activityHistory.length > 30) state.activityHistory.shift();
+    renderActivityChart();
+
+  } catch(e) {
+    console.warn('RO poll error:', e);
+  }
+}
+
+function renderRoGrid() {
+  const data = Object.values(state.roData);
+  const grid = $('ro-grid');
+
+  if (data.length === 0) {
+    grid.innerHTML = '<div class="empty-state">Nessun registro RO trovato.</div>';
+    return;
+  }
+
+  const q = state.roFilter;
+  const filtered = data.filter(r => {
+    const matchFilter = !q ||
+      String(r.indirizzo_modbus).includes(q) ||
+      (r.registro_robot || '').toLowerCase().includes(q) ||
+      (r.descrizione || '').toLowerCase().includes(q);
+    const matchType = roTypeState === 'all' || r.tipo_registro === roTypeState;
+    return matchFilter && matchType;
+  }).sort((a,b) => +a.indirizzo_modbus - +b.indirizzo_modbus);
+
+  grid.innerHTML = '';
+  for (const r of filtered) {
+    const card = document.createElement('div');
+    card.className = 'reg-card';
+    card.dataset.addr = r.indirizzo_modbus;
+    card.dataset.type = r.tipo_registro;
+    renderCardContent(card, r);
+    grid.appendChild(card);
+  }
+}
+
+function renderCardContent(card, r) {
+  const valDisplay = r.tipo_registro === 'co'
+    ? (r.valore ? '⬤ ON' : '○ OFF')
+    : fmt(r.valore);
+
+  card.innerHTML = `
+    <div class="reg-addr">
+      <span>@${r.indirizzo_modbus}</span>
+      <div>
+        <span class="type-badge ${r.tipo_registro}">${r.tipo_registro.toUpperCase()}</span>
+        ${r.tipo_registro === 'hr' ? '<span class="type-badge float-badge">FLOAT</span>' : ''}
+      </div>
+    </div>
+    <div class="reg-name">${r.registro_robot || '—'}</div>
+    <div class="reg-desc" title="${r.descrizione || ''}">${r.descrizione || '&nbsp;'}</div>
+    <div class="reg-value">${valDisplay}</div>
+    <div class="reg-ts">${fmtTs(r.timestamp)}</div>
+  `;
+}
+
+function updateCard(card, r, changed) {
+  const valEl = card.querySelector('.reg-value');
+  const tsEl  = card.querySelector('.reg-ts');
+  const newVal = r.tipo_registro === 'co'
+    ? (r.valore ? '⬤ ON' : '○ OFF')
+    : fmt(r.valore);
+
+  if (valEl) valEl.textContent = newVal;
+  if (tsEl)  tsEl.textContent  = fmtTs(r.timestamp);
+
+  if (changed) {
+    card.classList.remove('changed');
+    void card.offsetWidth; // force reflow per riavviare l'animazione
+    card.classList.add('changed');
+    setTimeout(() => card.classList.remove('changed'), state.highlightDuration);
+  }
+}
+
+function updateRoStats() {
+  const data = Object.values(state.roData);
+  $('s-ro-total').textContent = data.length;
+  $('s-co-count').textContent = data.filter(r => r.tipo_registro === 'co').length;
+  $('s-hr-count').textContent = data.filter(r => r.tipo_registro === 'hr').length;
+  $('cnt-ro').textContent = data.length;
+}
+
+/* ═══════════════════════════════════════════════════════
+   CHANGE FEED
+═══════════════════════════════════════════════════════ */
+function addToChangeFeed(addrs, allData) {
+  const feed = $('change-feed');
+  const map  = {};
+  for (const r of allData) map[r.indirizzo_modbus] = r;
+
+  for (const addr of addrs.slice(0, 5)) {
+    const r = map[addr] || state.roData[addr] || {};
+    const item = document.createElement('div');
+    item.className = 'change-item';
+    const val = r.tipo_registro === 'co'
+      ? (r.valore ? 'ON' : 'OFF') : fmt(r.valore);
+    item.innerHTML = `
+      <div class="change-addr">@${addr} ${r.registro_robot || ''}</div>
+      <div class="change-vals">→ ${val}</div>
+      <div class="change-ts">${now()}</div>
+    `;
+    feed.prepend(item);
+  }
+
+  while (feed.children.length > 30) feed.lastChild.remove();
+}
+
+/* Activity chart */
+function renderActivityChart() {
+  const chart = $('activity-chart');
+  if (!chart) return;
+  const hist = state.activityHistory;
+  const max  = Math.max(...hist, 1);
+  chart.innerHTML = '';
+  for (const v of hist) {
+    const bar = document.createElement('div');
+    bar.className = 'activity-bar';
+    bar.style.height = `${Math.max(4, (v / max) * 56)}px`;
+    bar.dataset.val = v;
+    chart.appendChild(bar);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════
+   RW POLLING
+═══════════════════════════════════════════════════════ */
+async function pollRw() {
+  try {
+    const r = await fetch('/api/registers/rw');
+    const d = await r.json();
+    if (d.error) throw new Error(d.error);
+
+    const newData = {};
+    for (const reg of d.data) {
+      newData[reg.indirizzo_modbus] = reg;
+    }
+
+    const changedAddrs = [];
+    for (const [addr, newReg] of Object.entries(newData)) {
+      const oldReg = state.rwData[addr];
+      if (!oldReg || oldReg.valore !== newReg.valore) {
+        changedAddrs.push(addr);
+      }
+    }
+
+    const isFirstLoad = Object.keys(state.rwData).length === 0;
+    state.rwData = newData;
+
+    $('cnt-rw').textContent = d.count;
+    $('s-rw-total').textContent = d.count;
+
+    if (isFirstLoad) {
+      renderRwTable();
+    } else if (changedAddrs.length > 0) {
+      state.rwStats.changes += changedAddrs.length;
+      $('rw-stats-changes').textContent = state.rwStats.changes;
+
+      for (const addr of changedAddrs) {
+        const reg = state.rwData[addr];
+        if (!reg) continue;
+
+        const curCell = $(`cur-${addr}`);
+        if (curCell) {
+          const newVal = reg.tipo_registro === 'co'
+            ? (reg.valore ? '⬤ ON' : '○ OFF')
+            : fmt(reg.valore);
+          curCell.textContent = newVal;
+          curCell.classList.remove('val-changed');
+          void curCell.offsetWidth;
+          curCell.classList.add('val-changed');
+          setTimeout(() => curCell.classList.remove('val-changed'), 500);
+        }
+
+        const tr = document.querySelector(`tr[data-addr="${addr}"]`);
+        if (tr) {
+          tr.classList.add('changed');
+          setTimeout(() => tr.classList.remove('changed'), state.highlightDuration);
+        }
+      }
+    }
+
+  } catch(e) {
+    console.warn('RW poll error:', e);
+  }
+}
+
+function renderRwTable() {
+  const data = Object.values(state.rwData)
+    .sort((a,b) => +a.indirizzo_modbus - +b.indirizzo_modbus);
+
+  const tbody = $('rw-tbody');
+  const q = state.rwFilter.toLowerCase();
+  const filtered = data.filter(r =>
+    !q ||
+    String(r.indirizzo_modbus).includes(q) ||
+    (r.registro_robot || '').toLowerCase().includes(q) ||
+    (r.descrizione || '').toLowerCase().includes(q)
+  );
+
+  tbody.innerHTML = '';
+  for (const r of filtered) {
+    const addr = r.indirizzo_modbus;
+    const dirty = state.dirtyFields[addr];
+    const curVal = r.tipo_registro === 'co'
+      ? (r.valore ? '⬤ ON' : '○ OFF')
+      : fmt(r.valore);
+
+    const tr = document.createElement('tr');
+    tr.dataset.addr = addr;
+    if (dirty !== undefined) tr.classList.add('has-dirty');
+
+    let inputCell;
+    if (r.tipo_registro === 'co') {
+      inputCell = `
+        <div class="coil-toggle">
+          <button class="coil-btn on ${dirty == 1 ? 'active' : ''}"
+            onclick="setDirty('${addr}', 1, 'co', this)">ON</button>
+          <button class="coil-btn off ${dirty == 0 ? 'active' : ''}"
+            onclick="setDirty('${addr}', 0, 'co', this)">OFF</button>
+        </div>`;
+    } else {
+      inputCell = `<input type="number" step="any"
+        placeholder="${fmt(r.valore)}"
+        value="${dirty !== undefined ? dirty : ''}"
+        class="${dirty !== undefined ? 'dirty' : ''}"
+        data-addr="${addr}"
+        oninput="handleRwInput(this, '${addr}', 'hr')"
+        onkeydown="if(event.key==='Enter') sendCommands()">`;
+    }
+
+    tr.innerHTML = `
+      <td class="td-status"><span class="row-status" id="rs-${addr}"></span></td>
+      <td class="td-addr">@${addr}</td>
+      <td class="td-name">
+        ${r.registro_robot || '—'}
+        ${dirty !== undefined ? '<span class="dirty-badge">⏳ in coda</span>' : ''}
+      </td>
+      <td class="td-desc" title="${r.descrizione || ''}">${r.descrizione || '—'}</td>
+      <td>
+        <span class="type-badge ${r.tipo_registro}">${r.tipo_registro.toUpperCase()}</span>
+        ${r.tipo_registro === 'hr' ? '<span class="type-badge float-badge" style="margin-left: 4px;">FLOAT</span>' : ''}
+      </td>
+      <td class="td-cur" id="cur-${addr}">${curVal}</td>
+      <td class="td-input">${inputCell}</td>
+    `;
+    tbody.appendChild(tr);
+  }
+  updatePendingCount();
+}
+
+function handleRwInput(input, addr, type) {
+  const val = input.value.trim();
+  if (val === '') {
+    delete state.dirtyFields[addr];
+    input.classList.remove('dirty', 'error-input');
+  } else {
+    const num = Number(val);
+    const decPart = val.split('.')[1];
+    const tooManyDecimals = decPart && decPart.length > 5;
+    if (isNaN(num) || tooManyDecimals || Math.abs(num) > 3.40282347e38) {
+      input.classList.add('error-input');
+      input.classList.remove('dirty');
+    } else {
+      input.classList.add('dirty');
+      input.classList.remove('error-input');
+      state.dirtyFields[addr] = num;
+    }
+  }
+  updatePendingCount();
+}
+
+function setDirty(addr, val, type, btn) {
+  state.dirtyFields[addr] = val;
+  const group = btn.closest('.coil-toggle');
+  group.querySelectorAll('.coil-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  updatePendingCount();
+}
+
+function updatePendingCount() {
+  const n = Object.keys(state.dirtyFields).length;
+  $('pending-count').textContent = n;
+  state.rwStats.pending = n;
+  $('rw-stats-pending').textContent = n;
+  $('s-queued').textContent = n;
+}
+
+function clearRwDirty() {
+  state.dirtyFields = {};
+  renderRwTable();
+  $('send-error-summary').style.display = 'none';
+}
+
+/* ═══════════════════════════════════════════════════════
+   SEND COMMANDS
+═══════════════════════════════════════════════════════ */
+async function sendCommands() {
+  const commands = Object.entries(state.dirtyFields).map(([addr, val]) => ({
+    address: +addr, value: val
+  }));
+  if (commands.length === 0) { toast('Nessun campo modificato', 'info'); return; }
+
+  for (const cmd of commands) {
+    const rs = $(`rs-${cmd.address}`);
+    if (rs) rs.className = 'row-status pending';
+  }
+
+  try {
+    const r = await fetch('/api/write', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({commands})
+    });
+    const d = await r.json();
+
+    for (const res of (d.results || [])) {
+      const reg = state.rwData[res.address];
+      if (reg) reg.valore = res.value;
+      delete state.dirtyFields[res.address];
+      addToSentFeed(res);
+    }
+
+    state.rwStats.success += (d.results || []).length;
+    $('rw-stats-success').textContent = state.rwStats.success;
+
+    const errSum = $('send-error-summary');
+    if ((d.error_details || []).length > 0) {
+      state.rwStats.errors += d.error_details.length;
+      $('rw-stats-errors').textContent = state.rwStats.errors;
+      errSum.textContent = `⚠ ${d.errors} errori`;
+      errSum.style.display = 'inline';
+      toast(`${d.queued} inviati, ${d.errors} errori`, 'error', 5000);
+    } else {
+      errSum.style.display = 'none';
+      toast(`✓ ${d.queued} comandi in coda`, 'success');
+    }
+
+    // Ricostruzione completa: pulisce input, classi dirty/error-input e badge
+    renderRwTable();
+
+    // Riapplica lo stato visivo (successo/errore + flash) sulle righe coinvolte
+    for (const res of (d.results || [])) {
+      const rs = $(`rs-${res.address}`);
+      if (rs) { rs.className = 'row-status success'; setTimeout(() => { if (rs) rs.className = 'row-status'; }, 2000); }
+      const curCell = $(`cur-${res.address}`);
+      if (curCell) { curCell.classList.add('val-changed'); setTimeout(() => curCell.classList.remove('val-changed'), 500); }
+      const tr = document.querySelector(`tr[data-addr="${res.address}"]`);
+      if (tr) { tr.classList.add('changed'); setTimeout(() => tr.classList.remove('changed'), 600); }
+    }
+    for (const err of (d.error_details || [])) {
+      const rs = $(`rs-${err.address}`);
+      if (rs) rs.className = 'row-status error';
+    }
+
+  } catch(e) {
+    toast(`Errore invio: ${e.message}`, 'error');
+    for (const cmd of commands) {
+      const rs = $(`rs-${cmd.address}`);
+      if (rs) rs.className = 'row-status error';
+    }
+  }
+}
+
+function addToSentFeed(res) {
+  const feed = $('sent-feed');
+  const item = document.createElement('div');
+  item.className = 'change-item';
+  item.innerHTML = `
+    <div class="change-addr">@${res.address}</div>
+    <div class="change-vals">← ${fmt(res.value)}</div>
+    <div class="change-ts">${now()}</div>
+  `;
+  feed.prepend(item);
+  while (feed.children.length > 20) feed.lastChild.remove();
+}
+
+/* ═══════════════════════════════════════════════════════
+   HISTORY
+═══════════════════════════════════════════════════════ */
+async function loadHistory() {
+  const limit = $('hist-limit').value;
+  const addr  = $('hist-addr').value;
+  const op    = $('hist-op').value;
+
+  let url = `/api/history/db?limit=${limit}`;
+  if (addr) url += `&addr=${encodeURIComponent(addr)}`;
+
+  try {
+    const r = await fetch(url);
+    const d = await r.json();
+    $('cnt-hist').textContent = d.count;
+
+    const tbody = $('hist-tbody');
+    const data = op ? d.data.filter(r => r.tipo_operazione === op) : d.data;
+
+    tbody.innerHTML = '';
+    for (const row of data) {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td style="font-family:var(--mono);font-size:10px;color:var(--text-dim)">${fmtTs(row.timestamp)}</td>
+        <td class="td-addr">@${row.indirizzo_modbus}</td>
+        <td style="font-family:var(--display);font-weight:600">${row.registro_robot || '—'}</td>
+        <td style="color:var(--text-dim);font-size:11px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
+          title="${row.descrizione || ''}">${row.descrizione || '—'}</td>
+        <td><span class="type-badge ${row.tipo_registro || 'co'}">${(row.tipo_registro||'?').toUpperCase()}</span></td>
+        <td style="font-family:var(--mono)">${fmt(row.valore)}</td>
+        <td><span class="type-badge ${row.accesso || 'ro'}" style="opacity:.7">${(row.accesso||'ro').toUpperCase()}</span></td>
+        <td><span class="op-badge ${row.tipo_operazione}">${row.tipo_operazione}</span></td>
+      `;
+      tbody.appendChild(tr);
+    }
+  } catch(e) {
+    console.warn('History error:', e);
+  }
+}
+
+let histAutoOn = false;
+function toggleHistAuto() {
+  histAutoOn = !histAutoOn;
+  $('hist-auto-btn').textContent = histAutoOn ? 'Auto ON' : 'Auto OFF';
+  $('hist-auto-btn').style.color = histAutoOn ? 'var(--green)' : '';
+  if (histAutoOn) {
+    histTimer = setInterval(loadHistory, 3000);
+  } else {
+    clearInterval(histTimer);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════
+   POLL TIMERS
+═══════════════════════════════════════════════════════ */
+function restartRoPoll() {
+  clearInterval(roPollTimer);
+  roPollTimer = setInterval(pollRo, state.pollInterval);
+}
+function restartRwPoll() {
+  clearInterval(rwPollTimer);
+  rwPollTimer = setInterval(pollRw, state.rwPollInterval);
+}
+
+/* ═══════════════════════════════════════════════════════
+   INIT
+═══════════════════════════════════════════════════════ */
+(async function init() {
+  await pollStatus();
+  await pollRo();
+  await pollRw();
+
+  restartRoPoll();
+  restartRwPoll();
+  statusTimer = setInterval(pollStatus, 5000);
+
+  changeFeedTimer = setInterval(async () => {
+    try {
+      const r = await fetch('/api/history/changes?limit=5');
+      const d = await r.json();
+      $('change-total').textContent = d.total;
+    } catch {}
+  }, 3000);
+})();
+</script>
+</body>
+</html>
