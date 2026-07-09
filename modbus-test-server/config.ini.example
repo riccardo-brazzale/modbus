@@ -1,11 +1,4 @@
-[modbus.server]
+[SERVER]
 host = 0.0.0.0
 port = 8001
-
-[sim]
-; Secondi tra un ciclo di variazioni random e il successivo
-change_interval = 5.0
-; Frazione di registri che cambiano ad ogni ciclo (0.0 = nessuno, 1.0 = tutti)
-change_ratio = 0.2
-; Probabilità che un coil scelto cambi effettivamente stato
-coil_flip_prob = 0.3
+update_interval = 1.0
