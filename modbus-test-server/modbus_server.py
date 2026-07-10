@@ -88,6 +88,12 @@ FLOAT_MIN       = float(cfg.get("sim", "float_min",       fallback="-100.0"))
 FLOAT_MAX       = float(cfg.get("sim", "float_max",       fallback="500.0"))
 MONITOR_INTERVAL = 30
 
+ENABLE_RANDOM_CHANGES = cfg.getboolean(
+    "sim",
+    "enable_random_changes",
+    fallback=True
+)
+
 REGISTERS_PATH = "registers.json"
 
 _ICONS = {
@@ -427,21 +433,36 @@ async def run_server() -> None:
     log.info("=" * 65)
 
     monitor_task = asyncio.create_task(monitor(server.context, by_type, hr_format))
-    changer_task = asyncio.create_task(
+    changer_task = None
+
+    if ENABLE_RANDOM_CHANGES:
+        log.info("🎲 Variazioni random abilitate")
+        changer_task = asyncio.create_task(
         random_changes(server.context, co_addrs, hr_addrs, hr_format)
     )
+    else:
+        log.info("⏸️ Variazioni random DISABILITATE")
 
     try:
         await server.serve_forever()
     finally:
         monitor_task.cancel()
-        changer_task.cancel()
-        for t in [monitor_task, changer_task]:
+        
+        if changer_task is not None:
+            changer_task.cancel()
+
+        tasks = [monitor_task]
+        if changer_task is not None:
+            tasks.append(changer_task)
+
+        for t in tasks:
             try:
                 await t
             except asyncio.CancelledError:
                 pass
+
         log.info("🛑 Server fermato")
+        
 
 if __name__ == "__main__":
     try:
