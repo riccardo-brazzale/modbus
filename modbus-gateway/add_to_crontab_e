@@ -1,0 +1,5 @@
+# Apri il crontab
+crontab -e
+
+# Aggiungi questa riga (sostituisci con i percorsi assoluti del tuo progetto)
+0 12 * * * cd /home/pi/MODBUS_RASPBERRY/modbus-gateway && /home/pi/MODBUS_RASPBERRY/.venv/bin/python purge_history.py >> /home/pi/MODBUS_RASPBERRY/modbus-gateway/logs/cron_purge.log 2>&1
