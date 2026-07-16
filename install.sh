@@ -16,6 +16,8 @@ set -euo pipefail
 # ─────────────────────────────────────────────────────────────────────────
 # CONFIGURAZIONE
 # ─────────────────────────────────────────────────────────────────────────
+
+mv /opt/MODBUS /OPT/modbus
 PROJECT_ROOT="/opt/modbus"
 VENV_DIR="${PROJECT_ROOT}/.venv"
 SERVICE_USER="modbus"
