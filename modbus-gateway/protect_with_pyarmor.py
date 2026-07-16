@@ -7,7 +7,7 @@ a partire dall'hardware della macchina ed è il valore garantito coerente tra
 generazione del binding e verifica a runtime.
 
 Il processo:
-1. Esecuzione di PyArmor sulla cartella source/ per generare i file offuscati in dist/
+1. Esecuzione di PyArmor sulla cartella source/ per generare i file offuscati
 2. Spostamento dei file originali da source/ a source_da_cancellare/ (svuotando source/)
 3. Copia dei file offuscati da dist/source/ a modbus-gateway/ (root del progetto)
 4. Copia del runtime di PyArmor in modbus-gateway/

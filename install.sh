@@ -28,7 +28,7 @@ DB_HOST="localhost"
 
 GATEWAY_DIR="${PROJECT_ROOT}/modbus-gateway"
 FRONTEND_DIR="${PROJECT_ROOT}/modbus-frontend"
-SERVICE_DEF_DIR="${PROJECT_ROOT}/service_definition"
+SERVICE_DEF_DIR="${PROJECT_ROOT}/services"
 
 MIN_PY_MAJOR=3
 MIN_PY_MINOR=10   # richiesto dalla sintassi "Tipo | None" in main.py (PEP 604)
@@ -339,6 +339,9 @@ step "Installazione servizi systemd"
 
 cp "${SERVICE_DEF_DIR}/modbus_gateway.service"  /etc/systemd/system/modbus_gateway.service
 cp "${SERVICE_DEF_DIR}/modbus_frontend.service" /etc/systemd/system/modbus_frontend.service
+
+chmod +x /etc/systemd/system/modbus_gateway.service
+chmod +x /etc/systemd/system/modbus_frontend.service
 
 systemctl daemon-reload
 systemctl enable modbus_gateway.service
