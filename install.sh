@@ -17,7 +17,7 @@ set -euo pipefail
 # CONFIGURAZIONE
 # ─────────────────────────────────────────────────────────────────────────
 PROJECT_ROOT="/opt/modbus"
-VENV_DIR="${PROJECT_ROOT}/venv"
+VENV_DIR="${PROJECT_ROOT}/.venv"
 SERVICE_USER="modbus"
 SERVICE_GROUP="modbus"
 
@@ -229,8 +229,17 @@ fi
 
 if [[ "$SOURCE_HAS_PY" -gt 0 && "$RUNTIME_OK" -eq 0 ]]; then
     warn "Runtime PyArmor mancante o non generato su questa macchina: avvio build offuscato"
+    # protect_with_pyarmor.py invoca l'eseguibile "pyarmor" tramite
+    # subprocess.run(["pyarmor", ...]), risolto cercando nel PATH.
+    # Lanciarlo con l'interprete assoluto ".venv/bin/python" NON è
+    # sufficiente: senza attivare il venv, ".venv/bin" non è in PATH e
+    # quella subprocess.run fallisce con FileNotFoundError. Va quindi
+    # attivato esplicitamente il virtualenv prima di eseguire lo script.
     pushd "$GATEWAY_DIR" >/dev/null
-    "${VENV_DIR}/bin/python" protect_with_pyarmor.py
+    # shellcheck disable=SC1091
+    source "${VENV_DIR}/bin/activate"
+    python protect_with_pyarmor.py
+    deactivate
     popd >/dev/null
     RUNTIME_OK=0
     if compgen -G "${GATEWAY_DIR}/pyarmor_runtime_*/pyarmor_runtime*" > /dev/null 2>&1; then
