@@ -42,6 +42,16 @@ ok()    { echo -e "${c_green}   ✔ $*${c_reset}"; }
 warn()  { echo -e "${c_yellow}   ⚠ $*${c_reset}"; }
 err()   { echo -e "${c_red}   ✖ $*${c_reset}" >&2; }
 
+# Numerazione a video delle fasi principali dello script (12 in totale).
+# step() incrementa il contatore ad ogni fase eseguita: se aggiungi o togli
+# una fase, aggiorna TOTAL_STEPS di conseguenza.
+TOTAL_STEPS=12
+STEP_NUM=0
+step() {
+    STEP_NUM=$((STEP_NUM + 1))
+    echo -e "\n${c_blue}==> [Passo ${STEP_NUM}/${TOTAL_STEPS}] $*${c_reset}"
+}
+
 # ─────────────────────────────────────────────────────────────────────────
 # CONTROLLI PRELIMINARI
 # ─────────────────────────────────────────────────────────────────────────
@@ -57,9 +67,28 @@ if [[ ! -d "$PROJECT_ROOT" ]]; then
 fi
 
 # ─────────────────────────────────────────────────────────────────────────
+# FASE 0 — PERMESSI DI ESECUZIONE SUGLI SCRIPT DEL REPO
+# ─────────────────────────────────────────────────────────────────────────
+# git non preserva il bit +x a meno che non sia stato committato: dopo un
+# clone fresco, questi script potrebbero non essere eseguibili. Non è
+# strettamente necessario per gli script Python (li invochiamo sempre come
+# "<venv>/bin/python script.py"), ma li rendiamo eseguibili comunque per
+# poterli lanciare anche a mano in futuro senza doverselo ricordare.
+step "Impostazione permessi di esecuzione sugli script del repository"
+
+chmod +x \
+    "${PROJECT_ROOT}/install.sh" \
+    "${GATEWAY_DIR}/install_database.py" \
+    "${GATEWAY_DIR}/protect_with_pyarmor.py" \
+    "${GATEWAY_DIR}/purge_history.py" \
+    2>/dev/null || true
+
+ok "Permessi di esecuzione impostati"
+
+# ─────────────────────────────────────────────────────────────────────────
 # FASE 1 — AGGIORNAMENTO SISTEMA E PACCHETTI
 # ─────────────────────────────────────────────────────────────────────────
-log "Aggiornamento indice pacchetti e installazione dipendenze di sistema"
+step "Aggiornamento indice pacchetti e installazione dipendenze di sistema"
 
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -y
@@ -95,7 +124,7 @@ ok "Python ${PY_VER} rilevato"
 # ─────────────────────────────────────────────────────────────────────────
 # FASE 1b — UTENTE DI SISTEMA DEDICATO
 # ─────────────────────────────────────────────────────────────────────────
-log "Configurazione utente di sistema '${SERVICE_USER}'"
+step "Configurazione utente di sistema '${SERVICE_USER}'"
 
 if ! id -u "$SERVICE_USER" >/dev/null 2>&1; then
     useradd --system --home-dir "$PROJECT_ROOT" --shell /usr/sbin/nologin "$SERVICE_USER"
@@ -107,7 +136,7 @@ fi
 # ─────────────────────────────────────────────────────────────────────────
 # FASE 2 — AMBIENTE VIRTUALE PYTHON (condiviso gateway + frontend)
 # ─────────────────────────────────────────────────────────────────────────
-log "Creazione ambiente virtuale Python in ${VENV_DIR}"
+step "Creazione ambiente virtuale Python in ${VENV_DIR}"
 
 if [[ ! -d "$VENV_DIR" ]]; then
     python3 -m venv "$VENV_DIR"
@@ -123,7 +152,7 @@ pip install --upgrade pip setuptools wheel
 # ─────────────────────────────────────────────────────────────────────────
 # FASE 3 — REQUIREMENTS
 # ─────────────────────────────────────────────────────────────────────────
-log "Installazione dipendenze Python (gateway + frontend + pyarmor)"
+step "Installazione dipendenze Python (gateway + frontend + pyarmor)"
 
 if [[ ! -f "${GATEWAY_DIR}/requirements.txt" ]]; then
     err "${GATEWAY_DIR}/requirements.txt non trovato."
@@ -148,7 +177,7 @@ deactivate
 # ─────────────────────────────────────────────────────────────────────────
 # FASE 4 — DATABASE MARIADB
 # ─────────────────────────────────────────────────────────────────────────
-log "Configurazione MariaDB"
+step "Configurazione MariaDB"
 
 systemctl enable --now mariadb
 
@@ -168,7 +197,7 @@ ok "Utente '${DB_USER}' e database '${DB_NAME}' pronti"
 # ─────────────────────────────────────────────────────────────────────────
 # FASE 5 — CONFIGURAZIONE (config.ini)
 # ─────────────────────────────────────────────────────────────────────────
-log "Generazione file di configurazione"
+step "Generazione file di configurazione"
 
 generate_config() {
     local example_file="$1"
@@ -219,7 +248,7 @@ fi
 # non quella in chiaro dentro source/. Se il runtime PyArmor non è ancora
 # stato generato su questa macchina, install_database.py fallisce con
 # "ModuleNotFoundError: No module named 'pyarmor_runtime_000000'".
-log "Offuscamento codice gateway con PyArmor"
+step "Offuscamento codice gateway con PyArmor"
 
 SOURCE_HAS_PY=$(find "${GATEWAY_DIR}/source" -maxdepth 1 -name "*.py" 2>/dev/null | wc -l)
 RUNTIME_OK=0
@@ -264,7 +293,7 @@ fi
 # ─────────────────────────────────────────────────────────────────────────
 # FASE 7 — INIZIALIZZAZIONE DATABASE (schema + registers.json)
 # ─────────────────────────────────────────────────────────────────────────
-log "Inizializzazione schema database (install_database.py)"
+step "Inizializzazione schema database (install_database.py)"
 
 pushd "$GATEWAY_DIR" >/dev/null
 "${VENV_DIR}/bin/python" install_database.py
@@ -275,7 +304,7 @@ ok "Schema database inizializzato/verificato"
 # ─────────────────────────────────────────────────────────────────────────
 # FASE 8 — PERMESSI
 # ─────────────────────────────────────────────────────────────────────────
-log "Impostazione permessi e ownership"
+step "Impostazione permessi e ownership"
 
 chown -R "${SERVICE_USER}:${SERVICE_GROUP}" "$PROJECT_ROOT"
 chmod 750 "$PROJECT_ROOT"
@@ -289,7 +318,7 @@ ok "Permessi applicati (proprietario ${SERVICE_USER}, config.ini in 640)"
 # ─────────────────────────────────────────────────────────────────────────
 # FASE 9 — SERVIZI SYSTEMD
 # ─────────────────────────────────────────────────────────────────────────
-log "Installazione servizi systemd"
+step "Installazione servizi systemd"
 
 cp "${SERVICE_DEF_DIR}/modbus_gateway.service"  /etc/systemd/system/modbus_gateway.service
 cp "${SERVICE_DEF_DIR}/modbus_frontend.service" /etc/systemd/system/modbus_frontend.service
@@ -312,7 +341,7 @@ fi
 # ─────────────────────────────────────────────────────────────────────────
 # FASE 10 — CRON: PULIZIA STORICO DATABASE
 # ─────────────────────────────────────────────────────────────────────────
-log "Configurazione cron per la pulizia dello storico (purge_history.py)"
+step "Configurazione cron per la pulizia dello storico (purge_history.py)"
 
 CRON_CMD="cd ${GATEWAY_DIR} && ${VENV_DIR}/bin/python purge_history.py >> ${GATEWAY_DIR}/logs/cron_purge.log 2>&1"
 CRON_LINE="0 3 * * * ${CRON_CMD}"
