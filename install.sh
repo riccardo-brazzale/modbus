@@ -126,11 +126,28 @@ ok "Python ${PY_VER} rilevato"
 # ─────────────────────────────────────────────────────────────────────────
 step "Configurazione utente di sistema '${SERVICE_USER}'"
 
-if ! id -u "$SERVICE_USER" >/dev/null 2>&1; then
-    useradd --system --home-dir "$PROJECT_ROOT" --shell /usr/sbin/nologin "$SERVICE_USER"
-    ok "Utente di sistema '${SERVICE_USER}' creato"
+# IMPORTANTE: creiamo il gruppo ESPLICITAMENTE prima dell'utente. Affidarsi
+# a "useradd --system" per creare anche un gruppo omonimo non è affidabile:
+# il comportamento dipende da USERGROUPS_ENAB in /etc/login.defs e per gli
+# account di sistema spesso non crea alcun gruppo dedicato. Se il gruppo
+# "modbus" non esiste, systemd non riesce a risolvere "Group=modbus" nei
+# file .service e i servizi falliscono con status=216/GROUP
+# ("Failed to determine group credentials: No such process").
+if ! getent group "$SERVICE_GROUP" >/dev/null 2>&1; then
+    groupadd --system "$SERVICE_GROUP"
+    ok "Gruppo di sistema '${SERVICE_GROUP}' creato"
 else
-    ok "Utente di sistema '${SERVICE_USER}' già presente"
+    ok "Gruppo di sistema '${SERVICE_GROUP}' già presente"
+fi
+
+if ! id -u "$SERVICE_USER" >/dev/null 2>&1; then
+    useradd --system --gid "$SERVICE_GROUP" --home-dir "$PROJECT_ROOT" --shell /usr/sbin/nologin "$SERVICE_USER"
+    ok "Utente di sistema '${SERVICE_USER}' creato (gruppo primario: ${SERVICE_GROUP})"
+else
+    # L'utente esiste già (magari creato manualmente prima di questo fix):
+    # assicuriamoci comunque che il gruppo primario sia quello corretto.
+    usermod --gid "$SERVICE_GROUP" "$SERVICE_USER"
+    ok "Utente di sistema '${SERVICE_USER}' già presente (gruppo primario verificato: ${SERVICE_GROUP})"
 fi
 
 # ─────────────────────────────────────────────────────────────────────────
