@@ -16,9 +16,8 @@ set -euo pipefail
 # ─────────────────────────────────────────────────────────────────────────
 # CONFIGURAZIONE
 # ─────────────────────────────────────────────────────────────────────────
-
 PROJECT_ROOT="/opt/modbus"
-VENV_DIR="${PROJECT_ROOT}/.venv"
+VENV_DIR="${PROJECT_ROOT}/venv"
 SERVICE_USER="modbus"
 SERVICE_GROUP="modbus"
 
@@ -210,19 +209,16 @@ if grep -q "ip = xxx.yyy.zzz.www" "${GATEWAY_DIR}/config.ini" 2>/dev/null; then
 fi
 
 # ─────────────────────────────────────────────────────────────────────────
-# FASE 6 — INIZIALIZZAZIONE DATABASE (schema + registers.json)
+# FASE 6 — OFFUSCAMENTO CON PYARMOR (idempotente)
 # ─────────────────────────────────────────────────────────────────────────
-log "Inizializzazione schema database (install_database.py)"
-
-pushd "$GATEWAY_DIR" >/dev/null
-"${VENV_DIR}/bin/python" install_database.py
-popd >/dev/null
-
-ok "Schema database inizializzato/verificato"
-
-# ─────────────────────────────────────────────────────────────────────────
-# FASE 7 — OFFUSCAMENTO CON PYARMOR (idempotente)
-# ─────────────────────────────────────────────────────────────────────────
+# NOTA D'ORDINE IMPORTANTE: questo passo deve avvenire PRIMA
+# dell'inizializzazione del database. install_database.py vive nella root
+# di modbus-gateway/ e fa "from logging_utils import setup_logger": Python
+# risolve quell'import sul logging_utils.py della STESSA cartella, che è
+# la versione già offuscata da PyArmor (importa pyarmor_runtime_000000),
+# non quella in chiaro dentro source/. Se il runtime PyArmor non è ancora
+# stato generato su questa macchina, install_database.py fallisce con
+# "ModuleNotFoundError: No module named 'pyarmor_runtime_000000'".
 log "Offuscamento codice gateway con PyArmor"
 
 SOURCE_HAS_PY=$(find "${GATEWAY_DIR}/source" -maxdepth 1 -name "*.py" 2>/dev/null | wc -l)
@@ -236,13 +232,36 @@ if [[ "$SOURCE_HAS_PY" -gt 0 && "$RUNTIME_OK" -eq 0 ]]; then
     pushd "$GATEWAY_DIR" >/dev/null
     "${VENV_DIR}/bin/python" protect_with_pyarmor.py
     popd >/dev/null
-    ok "Build offuscato generato e legato al Machine ID di questa macchina"
+    RUNTIME_OK=0
+    if compgen -G "${GATEWAY_DIR}/pyarmor_runtime_*/pyarmor_runtime*" > /dev/null 2>&1; then
+        RUNTIME_OK=1
+    fi
+    if [[ "$RUNTIME_OK" -eq 1 ]]; then
+        ok "Build offuscato generato e legato al Machine ID di questa macchina"
+    else
+        err "protect_with_pyarmor.py terminato ma il runtime non risulta presente."
+        err "Controlla l'output sopra (es. licenza PyArmor scaduta/non valida)."
+        exit 1
+    fi
 elif [[ "$RUNTIME_OK" -eq 1 ]]; then
     ok "Runtime PyArmor già presente e funzionante: nessuna rigenerazione necessaria"
 else
-    warn "Cartella source/ vuota e runtime assente: impossibile generare il build offuscato automaticamente."
-    warn "Verifica manualmente ${GATEWAY_DIR}/source/ e ${GATEWAY_DIR}/source_da_cancellare/"
+    err "Cartella source/ vuota e runtime PyArmor assente: impossibile generare il build offuscato."
+    err "Verifica manualmente ${GATEWAY_DIR}/source/ e ${GATEWAY_DIR}/source_da_cancellare/"
+    err "(senza runtime, anche install_database.py fallirebbe: dipende da logging_utils.py offuscato)"
+    exit 1
 fi
+
+# ─────────────────────────────────────────────────────────────────────────
+# FASE 7 — INIZIALIZZAZIONE DATABASE (schema + registers.json)
+# ─────────────────────────────────────────────────────────────────────────
+log "Inizializzazione schema database (install_database.py)"
+
+pushd "$GATEWAY_DIR" >/dev/null
+"${VENV_DIR}/bin/python" install_database.py
+popd >/dev/null
+
+ok "Schema database inizializzato/verificato"
 
 # ─────────────────────────────────────────────────────────────────────────
 # FASE 8 — PERMESSI
