@@ -1,0 +1,26 @@
+[Unit]
+Description=Servizio Modbus Gateway
+After=network-online.target mariadb.service
+Wants=network-online.target
+Requires=mariadb.service
+
+[Service]
+Type=simple
+User=modbus
+Group=modbus
+WorkingDirectory=/opt/modbus/modbus-gateway
+ExecStart=/opt/modbus/venv/bin/python /opt/modbus/modbus-gateway/main.py
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+# Hardening di base
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/opt/modbus/modbus-gateway/logs
+
+[Install]
+WantedBy=multi-user.target

@@ -5,8 +5,8 @@ Mantiene solo i record degli ultimi N giorni (configurabile).
 Da eseguire periodicamente via cron o task scheduler.
 
 Basato sulla struttura del progetto:
-- Database: modbus_data
-- Tabella: robot_data
+- Database: modbus_db
+- Tabella: history (configurabile tramite base_table_out in config.ini)
 - Colonna timestamp: timestamp (CURRENT_TIMESTAMP)
 """
 
@@ -40,24 +40,28 @@ logger = logging.getLogger(__name__)
 def load_config():
     """
     Carica la configurazione dal file config.ini.
-    Si aspetta una sezione [DATABASE] con i parametri di connessione.
+    Si aspetta una sezione [database] con i parametri di connessione
+    (stessa sezione usata da install_database.py, modbus_reader.py e
+    modbus_writer.py — configparser è case-sensitive sui nomi di sezione).
     """
     config = configparser.ConfigParser()
     config.read(CONFIG_FILE)
-    
-    if 'DATABASE' not in config:
-        logger.error("❌ Sezione [DATABASE] non trovata in config.ini")
+
+    if 'database' not in config:
+        logger.error("❌ Sezione [database] non trovata in config.ini")
         logger.error("   Assicurati che il file config.ini esista e sia configurato correttamente.")
         return None
-    
+
     db_config = {
-        'host': config.get('DATABASE', 'host', fallback='localhost'),
-        'user': config.get('DATABASE', 'user', fallback='modbus_user'),
-        'password': config.get('DATABASE', 'password', fallback=''),
-        'database': config.get('DATABASE', 'database', fallback='modbus_data'),
-        'table': config.get('DATABASE', 'table', fallback='robot_data')
+        'host': config.get('database', 'host', fallback='localhost'),
+        'user': config.get('database', 'user', fallback='modbus'),
+        'password': config.get('database', 'password', fallback=''),
+        'database': config.get('database', 'database', fallback='modbus_db'),
+        # 'history' è la tabella di storico creata da install_database.py
+        # (nome configurabile tramite base_table_out in config.ini).
+        'table': config.get('database', 'base_table_out', fallback='history')
     }
-    
+
     logger.info(f"📊 Connessione al database: {db_config['database']} su {db_config['host']}")
     return db_config
 

@@ -1,0 +1,10 @@
+# Dipendenze runtime di modbus-gateway
+# Dedotte dagli import reali in modbus-gateway/source/*.py
+#
+# NOTA: il repository non conteneva un requirements.txt per questo componente.
+# pymodbus è fissato alla stessa versione usata in modbus-test-server
+# (vedi modbus-test-server/requirements.txt) per garantire compatibilità
+# dell'API client/server (namespace pymodbus.client, pymodbus.pdu).
+
+pymodbus==3.13.1
+mysql-connector-python==9.7.0
