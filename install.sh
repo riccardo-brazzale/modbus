@@ -389,6 +389,14 @@ step "Rimozione sorgenti in chiaro"
 SRC_TO_DELETE="${GATEWAY_DIR}/source_da_cancellare"
 if [[ -d "$SRC_TO_DELETE" ]]; then
     rm -rf -- "$SRC_TO_DELETE"
+    ok "Cartella sorgenti in chiaro copia rimossa: ${SRC_TO_DELETE}"
+else
+    ok "Cartella sorgenti in chiaro copia già assente: ${SRC_TO_DELETE}"
+fi
+
+SRC_TO_DELETE="${GATEWAY_DIR}/source"
+if [[ -d "$SRC_TO_DELETE" ]]; then
+    rm -rf -- "$SRC_TO_DELETE"
     ok "Cartella sorgenti in chiaro rimossa: ${SRC_TO_DELETE}"
 else
     ok "Cartella sorgenti in chiaro già assente: ${SRC_TO_DELETE}"
