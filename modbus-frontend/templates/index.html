@@ -79,22 +79,11 @@ html, body {
   gap: 16px;
 }
 
-.hdr-logo {
-  width: 36px; height: 36px;
-  border: 1.5px solid var(--amber);
-  display: flex; align-items: center; justify-content: center;
-  position: relative;
-  transform: rotate(45deg);
-}
-.hdr-logo::before {
-  content: '';
-  position: absolute; inset: 4px;
-  border: 1px solid var(--amber-dim);
-}
-.hdr-logo-inner {
-  width: 8px; height: 8px;
-  background: var(--amber);
-  transform: rotate(-45deg);
+.hdr-logo-img {
+  height: 40px;
+  width: auto;
+  display: block;
+  object-fit: contain;
 }
 
 .hdr-title {
@@ -981,11 +970,7 @@ table.history-table tbody td { padding: 7px 12px; vertical-align: middle; }
 <!-- ══════════════════════ HEADER ══════════════════════ -->
 <header id="header">
   <div class="hdr-brand">
-    <div class="hdr-logo"><div class="hdr-logo-inner"></div></div>
-    <div>
-      <div class="hdr-title">Modbus Monitor</div>
-      <div class="hdr-subtitle">Industrial Control Interface</div>
-    </div>
+    <img class="hdr-logo-img" src="{{ url_for('static', filename='img/lokermann-logo.jpg') }}" alt="Lokermann - Just Be Stronger">
   </div>
 
   <div class="hdr-info">
