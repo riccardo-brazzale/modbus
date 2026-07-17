@@ -45,7 +45,7 @@ err()   { echo -e "${c_red}   ✖ $*${c_reset}" >&2; }
 # Numerazione a video delle fasi principali dello script (12 in totale).
 # step() incrementa il contatore ad ogni fase eseguita: se aggiungi o togli
 # una fase, aggiorna TOTAL_STEPS di conseguenza.
-TOTAL_STEPS=12
+TOTAL_STEPS=13
 STEP_NUM=0
 step() {
     STEP_NUM=$((STEP_NUM + 1))
@@ -378,6 +378,23 @@ else
 fi
 
 # ─────────────────────────────────────────────────────────────────────────
+# FASE 11 — RIMOZIONE SORGENTI IN CHIARO
+# ─────────────────────────────────────────────────────────────────────────
+# A questo punto il build offuscato è stato generato e verificato in FASE 6:
+# i servizi systemd importano solo i moduli offuscati (pyarmor_runtime_*),
+# quindi i sorgenti in chiaro non servono più a runtime. Li rimuoviamo per
+# non lasciarli mai in chiaro sulla macchina di destinazione.
+step "Rimozione sorgenti in chiaro"
+
+SRC_TO_DELETE="${GATEWAY_DIR}/source_da_cancellare"
+if [[ -d "$SRC_TO_DELETE" ]]; then
+    rm -rf -- "$SRC_TO_DELETE"
+    ok "Cartella sorgenti in chiaro rimossa: ${SRC_TO_DELETE}"
+else
+    ok "Cartella sorgenti in chiaro già assente: ${SRC_TO_DELETE}"
+fi
+
+# ─────────────────────────────────────────────────────────────────────────
 # RIEPILOGO FINALE
 # ─────────────────────────────────────────────────────────────────────────
 log "Installazione completata"
@@ -393,3 +410,13 @@ if [[ "$CONFIG_INCOMPLETE" -eq 1 ]]; then
     echo -e "${c_yellow}  • ATTENZIONE: completa manualmente l'IP del robot in ${GATEWAY_DIR}/config.ini${c_reset}"
 fi
 echo
+
+# ─────────────────────────────────────────────────────────────────────────
+# AUTODISTRUZIONE DELLO SCRIPT
+# ─────────────────────────────────────────────────────────────────────────
+# Rimuoviamo install.sh stesso: un utente non autorizzato non potrà
+# rilanciarlo per errore (o deliberatamente) e rigenerare/alterare
+# l'installazione o un runtime PyArmor legato a un Machine ID diverso.
+# rm sul proprio $0 mentre lo script gira è sicuro: bash ha già bufferizzato
+# tutto il codice necessario prima di arrivare a questo punto.
+rm -f -- "${PROJECT_ROOT}/install.sh"
