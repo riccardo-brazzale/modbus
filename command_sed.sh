@@ -1,1 +1,0 @@
-sed -i 's/\r$//' /opt/modbus/install.sh

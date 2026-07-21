@@ -1,0 +1,25 @@
+# Forza il line-ending LF per tutti i file di testo, in checkout,
+# indipendentemente dal sistema operativo o dal core.autocrlf locale
+# di chi clona il repository. Risolve alla radice il problema per cui
+# uno script clonato/copiato da una macchina Windows arriva con CRLF
+# su Linux e rompe la shebang (#!/usr/bin/env bash\r non è un
+# interprete valido).
+* text=auto eol=lf
+
+# Script e file eseguiti direttamente da systemd/bash: LF obbligatorio.
+*.sh          text eol=lf
+*.service     text eol=lf
+*.py          text eol=lf
+
+# File di configurazione e dati: LF per coerenza, non hanno una
+# shebang ma è comunque buona norma evitare CRLF misti nel repo.
+*.ini         text eol=lf
+*.ini.example text eol=lf
+*.json        text eol=lf
+*.md          text eol=lf
+
+# File binari: mai toccare i byte, nessuna normalizzazione EOL.
+*.docx        binary
+*.png         binary
+*.jpg         binary
+*.jpeg        binary
