@@ -6,6 +6,7 @@ Interfaccia web industriale per monitoraggio e controllo registri Modbus.
 
 import configparser
 import json
+import os
 import time
 import threading
 import subprocess
@@ -34,6 +35,14 @@ MODBUS_IP   = cfg["modbus_server"]["ip"]
 MODBUS_PORT = cfg["modbus_server"]["port"]
 
 GATEWAY_SERVICE_NAME = "modbus_gateway.service"
+
+# Il servizio modbus_frontend.service imposta Environment="PATH=<venv>/bin",
+# quindi cercare "systemctl" nel PATH non lo trova: usiamo il percorso
+# assoluto (standard su Debian/Raspberry Pi OS) invece di dipendere da PATH.
+SYSTEMCTL_BIN = next(
+    (p for p in ("/usr/bin/systemctl", "/bin/systemctl") if os.path.exists(p)),
+    "systemctl",  # fallback: lascia che fallisca in modo esplicito se non trovato
+)
 
 TABLE_OUT   = cfg["database"]["base_table_out"]
 TABLE_IN    = cfg["database"]["base_table_in"]
@@ -183,7 +192,7 @@ def api_gateway_service_status():
     """
     try:
         result = subprocess.run(
-            ["systemctl", "is-active", GATEWAY_SERVICE_NAME],
+            [SYSTEMCTL_BIN, "is-active", GATEWAY_SERVICE_NAME],
             capture_output=True, text=True, timeout=3,
         )
         state = result.stdout.strip()  # "active" | "inactive" | "failed" | "activating" | ...
