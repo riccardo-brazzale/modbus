@@ -8,6 +8,7 @@ import configparser
 import json
 import time
 import threading
+import subprocess
 from datetime import datetime
 from collections import deque
 
@@ -31,6 +32,8 @@ DB_CONFIG = {
 
 MODBUS_IP   = cfg["modbus_server"]["ip"]
 MODBUS_PORT = cfg["modbus_server"]["port"]
+
+GATEWAY_SERVICE_NAME = "modbus_gateway.service"
 
 TABLE_OUT   = cfg["database"]["base_table_out"]
 TABLE_IN    = cfg["database"]["base_table_in"]
@@ -171,6 +174,22 @@ def api_status():
         "timestamp": datetime.now().isoformat(),
         "counts": counts,
     })
+
+@app.route("/api/gateway-service-status")
+def api_gateway_service_status():
+    """
+    Interroga systemd per sapere se modbus_gateway.service è attivo.
+    'systemctl is-active' non richiede privilegi speciali per la sola lettura.
+    """
+    try:
+        result = subprocess.run(
+            ["systemctl", "is-active", GATEWAY_SERVICE_NAME],
+            capture_output=True, text=True, timeout=3,
+        )
+        state = result.stdout.strip()  # "active" | "inactive" | "failed" | "activating" | ...
+        return jsonify({"active": state == "active", "state": state})
+    except Exception as e:
+        return jsonify({"active": False, "state": "unknown", "error": str(e)})
 
 @app.route("/api/registers/ro")
 def api_ro():
