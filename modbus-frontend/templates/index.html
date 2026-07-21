@@ -1370,11 +1370,27 @@ function toggleType() {
 /* ═══════════════════════════════════════════════════════
    STATUS POLL
 ═══════════════════════════════════════════════════════ */
+// Se l'ultima riga scritta in history è più vecchia di questa soglia,
+// il gateway viene considerato fermo/giù (nessuna modifica al backend:
+// riusa /api/history/db, già esistente e invariato).
+const GATEWAY_STALE_SECONDS = 30;
+
 async function pollStatus() {
   try {
-    const r = await fetch('/api/status');
-    const d = await r.json();
-    const ok = d.db_connected;
+    const [statusRes, histRes] = await Promise.all([
+      fetch('/api/status'),
+      fetch('/api/history/db?limit=1'),
+    ]);
+    const d    = await statusRes.json();
+    const hist = await histRes.json();
+
+    let gatewayFresh = false;
+    if (hist.data && hist.data.length) {
+      const lastTs = new Date(hist.data[0].timestamp).getTime();
+      gatewayFresh = (Date.now() - lastTs) / 1000 <= GATEWAY_STALE_SECONDS;
+    }
+
+    const ok = d.db_connected && gatewayFresh;
     $('status-dot').className = 'status-dot' + (ok ? '' : ' offline');
     $('status-label').className = 'status-label' + (ok ? '' : ' offline');
     $('status-label').textContent = ok ? 'ONLINE' : 'OFFLINE';
