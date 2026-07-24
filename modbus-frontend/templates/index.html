@@ -94,7 +94,7 @@ html, body {
 .hdr-brand {
   display: flex;
   align-items: center;
-  position: absolute;
+  margin-right: auto; /* Spinge gli elementi a destra */
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
@@ -131,6 +131,7 @@ html, body {
   align-items: center;
   gap: 16px;
   justify-content: flex-end;
+  margin-left: auto; /* Spinge a destra */
 }
 
 .info-pill {
@@ -1003,8 +1004,7 @@ table.history-table tbody td { padding: 7px 12px; vertical-align: middle; }
 
 <!-- ══════════════════════ HEADER ══════════════════════ -->
 <header id="header">
-  <div class="hdr-brand">
-    <!-- Sostituire qui il file del logo; il layout lo mantiene centrato. -->
+  <div class="hdr-brand" style="position:static; transform:none; margin-right:auto;">
     <img class="hdr-logo-img" src="{{ url_for('static', filename='img/lokermann-logo.jpg') }}" alt="Lokermann - Just Be Stronger">
   </div>
 
