@@ -277,7 +277,7 @@
 {"registro":18342,"tipo_registro":"hr","registro_robot":"GR3027","descrizione":"","accesso":"rw","data_type":"float"},
 {"registro":18344,"tipo_registro":"hr","registro_robot":"GR3028","descrizione":"","accesso":"rw","data_type":"float"},
 {"registro":18346,"tipo_registro":"hr","registro_robot":"GR3029","descrizione":"","accesso":"rw","data_type":"float"},
-{"registro":18348,"tipo_registro":"hr","registro_robot":"GR3000","descrizione":"","accesso":"rw","data_type":"float"},
+{"registro":18348,"tipo_registro":"hr","registro_robot":"GR3030","descrizione":"","accesso":"rw","data_type":"float"},
 {"registro":18350,"tipo_registro":"hr","registro_robot":"GR3031","descrizione":"","accesso":"rw","data_type":"float"},
 {"registro":18352,"tipo_registro":"hr","registro_robot":"GR3032","descrizione":"","accesso":"rw","data_type":"float"},
 {"registro":18354,"tipo_registro":"hr","registro_robot":"GR3033","descrizione":"","accesso":"rw","data_type":"float"},
