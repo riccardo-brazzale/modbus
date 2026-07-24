@@ -42,3 +42,6 @@ dist/
 
 # Bytecode
 __pycache__/
+
+#token
+*.token
