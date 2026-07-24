@@ -19,9 +19,17 @@ import mysql.connector
 from flask import Flask, jsonify, request, render_template
 from flask_cors import CORS
 
-GATEWAY_SOURCE = Path(__file__).resolve().parent.parent / "modbus-gateway" / "source"
-if str(GATEWAY_SOURCE) not in sys.path:
-    sys.path.insert(0, str(GATEWAY_SOURCE))
+# In produzione ``protect_with_pyarmor.py`` pubblica i moduli offuscati
+# direttamente in modbus-gateway/ e l'installer rimuove source/.  Durante lo
+# sviluppo invece i moduli sono ancora in source/.
+GATEWAY_ROOT = Path(__file__).resolve().parent.parent / "modbus-gateway"
+GATEWAY_MODULES = (
+    GATEWAY_ROOT
+    if (GATEWAY_ROOT / "register_validation.py").is_file()
+    else GATEWAY_ROOT / "source"
+)
+if str(GATEWAY_MODULES) not in sys.path:
+    sys.path.insert(0, str(GATEWAY_MODULES))
 from register_validation import validate_value
 
 # ──────────────────────────────────────────────
