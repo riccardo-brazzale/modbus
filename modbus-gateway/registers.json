@@ -299,5 +299,4 @@
 {"registro":18386,"tipo_registro":"hr","registro_robot":"GR3049","descrizione":"","accesso":"rw","data_type":"float"},
 {"registro":18388,"tipo_registro":"hr","registro_robot":"GR3050","descrizione":"","accesso":"rw","data_type":"float"},
 {"registro":18390,"tipo_registro":"hr","registro_robot":"GR3051","descrizione":"","accesso":"rw","data_type":"float"}
-
 ]

@@ -9,3 +9,6 @@ base_table_out = history
 [modbus_server]
 ip = 127.0.0.1
 port = 8001
+
+[gateway]
+registers_json_path = ../modbus-gateway/registers.json

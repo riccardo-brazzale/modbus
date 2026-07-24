@@ -10,12 +10,19 @@ import os
 import time
 import threading
 import subprocess
+import sys
+from pathlib import Path
 from datetime import datetime
 from collections import deque
 
 import mysql.connector
 from flask import Flask, jsonify, request, render_template
 from flask_cors import CORS
+
+GATEWAY_SOURCE = Path(__file__).resolve().parent.parent / "modbus-gateway" / "source"
+if str(GATEWAY_SOURCE) not in sys.path:
+    sys.path.insert(0, str(GATEWAY_SOURCE))
+from register_validation import validate_value
 
 # ──────────────────────────────────────────────
 # CONFIGURAZIONE
@@ -46,6 +53,9 @@ SYSTEMCTL_BIN = next(
 
 TABLE_OUT   = cfg["database"]["base_table_out"]
 TABLE_IN    = cfg["database"]["base_table_in"]
+REGISTERS_JSON = Path(cfg.get("gateway", "registers_json_path", fallback=str(
+    Path(__file__).resolve().parent.parent / "modbus-gateway" / "registers.json"
+)))
 
 app = Flask(__name__)
 CORS(app)
@@ -203,7 +213,7 @@ def api_gateway_service_status():
 @app.route("/api/registers/ro")
 def api_ro():
     since = request.args.get("since")
-    sql = "SELECT indirizzo_modbus, registro_robot, descrizione, tipo_registro, valore, timestamp FROM current_state WHERE LOWER(accesso)='ro'"
+    sql = "SELECT indirizzo_modbus, registro_robot, descrizione, tipo_registro, data_type, valore, timestamp FROM current_state WHERE LOWER(accesso)='ro'"
     params = []
     if since:
         sql += " AND timestamp > %s"
@@ -223,7 +233,7 @@ def api_ro():
 @app.route("/api/registers/rw")
 def api_rw():
     try:
-        rows = db_query("SELECT indirizzo_modbus, registro_robot, descrizione, tipo_registro, valore, timestamp FROM current_state WHERE LOWER(accesso)='rw' ORDER BY indirizzo_modbus")
+        rows = db_query("SELECT indirizzo_modbus, registro_robot, descrizione, tipo_registro, data_type, valore, timestamp FROM current_state WHERE LOWER(accesso)='rw' ORDER BY indirizzo_modbus")
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -254,7 +264,7 @@ def api_write():
             errors.append({"address": addr, "error": "address o value mancante"})
             continue
         try:
-            reg = db_query("SELECT tipo_registro, accesso FROM current_state WHERE indirizzo_modbus=%s", (str(addr),), fetchall=False)
+            reg = db_query("SELECT tipo_registro, data_type, accesso FROM current_state WHERE indirizzo_modbus=%s", (str(addr),), fetchall=False)
         except Exception as e:
             errors.append({"address": addr, "error": f"DB error: {e}"})
             continue
@@ -264,7 +274,7 @@ def api_write():
         if reg["accesso"] != "rw":
             errors.append({"address": addr, "error": "Registro in sola lettura (ro)"})
             continue
-        ok, msg, converted = validate_register_value(reg["tipo_registro"], value)
+        ok, msg, converted = validate_value(reg["tipo_registro"], reg["data_type"], value)
         if not ok:
             errors.append({"address": addr, "error": msg})
             continue
@@ -276,6 +286,28 @@ def api_write():
             errors.append({"address": addr, "error": str(e)})
 
     return jsonify({"queued": len(results), "errors": len(errors), "results": results, "error_details": errors, "timestamp": datetime.now().isoformat()}), (200 if not errors else 207)
+
+@app.route("/api/registers/<addr>/data-type", methods=["POST"])
+def api_update_data_type(addr):
+    body = request.get_json(force=True, silent=True) or {}
+    data_type = body.get("data_type")
+    if data_type not in {"int", "float"}:
+        return jsonify({"error": "data_type deve essere int o float"}), 400
+    try:
+        records = json.loads(REGISTERS_JSON.read_text(encoding="utf-8"))
+        record = next((r for r in records if str(r.get("registro")) == str(addr)), None)
+        if not record:
+            return jsonify({"error": "Registro non trovato"}), 404
+        if record.get("tipo_registro") != "hr":
+            return jsonify({"error": "data_type modificabile solo per holding register"}), 400
+        record["data_type"] = data_type
+        REGISTERS_JSON.write_text(json.dumps(records, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        db_execute("UPDATE registers SET data_type=%s WHERE registro_modbus=%s", (data_type, str(addr)))
+        db_execute("UPDATE current_state SET data_type=%s WHERE indirizzo_modbus=%s", (data_type, str(addr)))
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    return jsonify({"address": str(addr), "data_type": data_type,
+                    "gateway_restart_required": True})
 
 @app.route("/api/history/changes")
 def api_history_changes():
@@ -289,9 +321,9 @@ def api_history_db():
     limit = min(int(request.args.get("limit", 100)), 500)
     addr  = request.args.get("addr")
     if addr:
-        rows = db_query(f"SELECT indirizzo_modbus, registro_robot, descrizione, tipo_registro, valore, accesso, tipo_operazione, timestamp FROM `{TABLE_OUT}` WHERE indirizzo_modbus=%s ORDER BY timestamp DESC LIMIT %s", (addr, limit))
+        rows = db_query(f"SELECT indirizzo_modbus, registro_robot, descrizione, tipo_registro, data_type, valore, accesso, tipo_operazione, timestamp FROM `{TABLE_OUT}` WHERE indirizzo_modbus=%s ORDER BY timestamp DESC LIMIT %s", (addr, limit))
     else:
-        rows = db_query(f"SELECT indirizzo_modbus, registro_robot, descrizione, tipo_registro, valore, accesso, tipo_operazione, timestamp FROM `{TABLE_OUT}` ORDER BY timestamp DESC LIMIT %s", (limit,))
+        rows = db_query(f"SELECT indirizzo_modbus, registro_robot, descrizione, tipo_registro, data_type, valore, accesso, tipo_operazione, timestamp FROM `{TABLE_OUT}` ORDER BY timestamp DESC LIMIT %s", (limit,))
     for r in rows:
         if hasattr(r.get("timestamp"), "isoformat"):
             r["timestamp"] = r["timestamp"].isoformat()

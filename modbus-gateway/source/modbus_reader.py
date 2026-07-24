@@ -658,6 +658,7 @@ class ModbusReader(threading.Thread):
                     meta["tipo_registro"],
                     norm_val,
                     meta["accesso"],
+                    meta["data_type"],
                 )
                 to_history.append(row_base + ("READ",))
                 to_current_state.append(row_base)
@@ -683,20 +684,21 @@ class ModbusReader(threading.Thread):
         q_hist = f"""
             INSERT INTO `{self.table_out}`
                 (indirizzo_modbus, registro_robot, descrizione,
-                 tipo_registro, valore, accesso, tipo_operazione)
-            VALUES (%s, %s, %s, %s, %s, %s, %s)
+                 tipo_registro, valore, accesso, data_type, tipo_operazione)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
         """
         q_state = """
             INSERT INTO current_state
                 (indirizzo_modbus, registro_robot, descrizione,
-                 tipo_registro, valore, accesso)
-            VALUES (%s, %s, %s, %s, %s, %s)
+                 tipo_registro, valore, accesso, data_type)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
             ON DUPLICATE KEY UPDATE
                 registro_robot = VALUES(registro_robot),
                 descrizione    = VALUES(descrizione),
                 tipo_registro  = VALUES(tipo_registro),
                 valore         = VALUES(valore),
                 accesso        = VALUES(accesso),
+                data_type      = VALUES(data_type),
                 timestamp      = CURRENT_TIMESTAMP
         """
         try:

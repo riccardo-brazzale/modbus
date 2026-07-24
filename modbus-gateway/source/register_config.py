@@ -16,6 +16,7 @@ log = setup_logger("register_config", "log.log")
 ACCESS_RO    = "ro"
 ACCESS_RW    = "rw"
 VALID_ACCESS = {ACCESS_RO, ACCESS_RW}
+VALID_DATA_TYPES = {"int", "float"}
 
 REGISTER_TYPES = {
     "co": "Coils",
@@ -64,12 +65,15 @@ class RegisterConfigManager:
                 log.warning(f"⚠️  @{addr}: accesso '{accesso}' sconosciuto → ro (fail-safe)")
                 accesso = ACCESS_RO
 
+            data_type = self._parse_data_type(addr, reg_type, entry)
+
             record = {
                 "registro":       addr,
                 "tipo_registro":  reg_type,
                 "registro_robot": entry.get("registro_robot", f"REG_{addr}"),
                 "descrizione":    entry.get("descrizione", ""),
                 "accesso":        accesso,
+                "data_type":      data_type,
             }
             self._registers[addr] = record
             self._by_type[reg_type].add(addr)
@@ -83,6 +87,17 @@ class RegisterConfigManager:
             f"✅ {len(self._registers)} registri caricati "
             f"({len(self._ro_addresses)} ro, {len(self._rw_addresses)} rw)"
         )
+
+    @staticmethod
+    def _parse_data_type(addr: int, reg_type: str, entry: dict) -> Optional[str]:
+        data_type = entry.get("data_type")
+        if reg_type == "hr":
+            if data_type not in VALID_DATA_TYPES:
+                raise ValueError(f"@{addr}: data_type obbligatorio per hr (int o float)")
+            return data_type
+        if data_type is not None:
+            raise ValueError(f"@{addr}: data_type consentito solo per hr")
+        return None
 
     def _print_summary(self):
         print("\n" + "=" * 65)
@@ -124,6 +139,10 @@ class RegisterConfigManager:
     def get_access(self, address: int) -> Optional[str]:
         rec = self._registers.get(address)
         return rec["accesso"] if rec else None
+
+    def get_data_type(self, address: int) -> Optional[str]:
+        rec = self._registers.get(address)
+        return rec["data_type"] if rec else None
 
     def is_readable(self, address: int) -> bool:
         return address in self._registers

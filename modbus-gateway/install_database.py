@@ -129,7 +129,10 @@ class DatabaseInstaller:
                     tipo_registro    VARCHAR(2)  NOT NULL,
                     registro_robot   VARCHAR(32),
                     descrizione      VARCHAR(255),
-                    accesso          ENUM('ro','rw') NOT NULL DEFAULT 'ro'
+                    accesso          ENUM('ro','rw') NOT NULL DEFAULT 'ro',
+                    data_type        ENUM('int','float') NULL,
+                    CHECK ((tipo_registro = 'hr' AND data_type IS NOT NULL)
+                        OR (tipo_registro <> 'hr' AND data_type IS NULL))
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
             """)
 
@@ -160,7 +163,10 @@ class DatabaseInstaller:
                     tipo_registro    VARCHAR(2),
                     valore           DOUBLE,
                     accesso          ENUM('ro','rw') NOT NULL DEFAULT 'ro',
+                    data_type        ENUM('int','float') NULL,
                     tipo_operazione  ENUM('READ','WRITE') NOT NULL,
+                    CHECK ((tipo_registro = 'hr' AND data_type IS NOT NULL)
+                        OR (tipo_registro <> 'hr' AND data_type IS NULL)),
                     INDEX idx_modbus_timestamp (indirizzo_modbus, timestamp),
                     INDEX idx_operazione (tipo_operazione),
                     INDEX idx_timestamp  (timestamp)
@@ -178,19 +184,47 @@ class DatabaseInstaller:
                     tipo_registro    VARCHAR(2),
                     valore           DOUBLE,
                     accesso          ENUM('ro','rw') NOT NULL DEFAULT 'ro',
+                    data_type        ENUM('int','float') NULL,
                     timestamp        TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                                      ON UPDATE CURRENT_TIMESTAMP,
+                    CHECK ((tipo_registro = 'hr' AND data_type IS NOT NULL)
+                        OR (tipo_registro <> 'hr' AND data_type IS NULL)),
                     INDEX idx_timestamp (timestamp),
                     INDEX idx_tipo (tipo_registro),
                     INDEX idx_accesso (accesso)
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
             """)
 
+            # Migrazione per installazioni esistenti: CREATE TABLE IF NOT EXISTS
+            # non aggiunge colonne alle tabelle gia' create.
+            self._ensure_column(cursor, "registers", "data_type", "ENUM('int','float') NULL")
+            self._ensure_column(cursor, self.table_out, "data_type", "ENUM('int','float') NULL")
+            self._ensure_column(cursor, "current_state", "data_type", "ENUM('int','float') NULL")
+
             conn.commit()
             print("  ✔ Tabelle create/verificate")
 
         #self._create_trigger()
         return True
+
+    # ------------------------------------------------------
+    @staticmethod
+    def _ensure_column(cursor, table_name, column_name, definition):
+        """Aggiunge una colonna solo se non e' gia' presente."""
+        cursor.execute(
+            """
+            SELECT COUNT(*)
+            FROM information_schema.COLUMNS
+            WHERE TABLE_SCHEMA = DATABASE()
+              AND TABLE_NAME = %s
+              AND COLUMN_NAME = %s
+            """,
+            (table_name, column_name),
+        )
+        if cursor.fetchone()[0] == 0:
+            cursor.execute(
+                f"ALTER TABLE `{table_name}` ADD COLUMN `{column_name}` {definition}"
+            )
 
     # ------------------------------------------------------
     #def _create_trigger(self):
@@ -244,20 +278,22 @@ class DatabaseInstaller:
             cursor.execute("""
                 INSERT INTO current_state
                     (indirizzo_modbus, registro_robot, descrizione,
-                    tipo_registro, valore, accesso)
+                    tipo_registro, valore, accesso, data_type)
                 SELECT
                     registro_modbus,
                     registro_robot,
                     descrizione,
                     tipo_registro,
                     0 AS valore,
-                    accesso
+                    accesso,
+                    data_type
                 FROM registers
                 ON DUPLICATE KEY UPDATE
                     registro_robot = VALUES(registro_robot),
                     descrizione    = VALUES(descrizione),
                     tipo_registro  = VALUES(tipo_registro),
-                    accesso        = VALUES(accesso);
+                    accesso        = VALUES(accesso),
+                    data_type      = VALUES(data_type);
             """)
 
             # 2️⃣ Sovrascrive con ultimo valore da history se esiste
@@ -300,23 +336,35 @@ class DatabaseInstaller:
         with db_connection(self.db_config) as conn, db_cursor(conn) as cursor:
             for r in registers:
                 accesso = r.get("accesso", "ro").lower()
+                reg_type = r["tipo_registro"]
+                data_type = r.get("data_type")
+                if reg_type == "hr" and data_type not in {"int", "float"}:
+                    raise ValueError(
+                        f"Registro {r['registro']}: data_type obbligatorio per hr (int o float)"
+                    )
+                if reg_type != "hr" and data_type is not None:
+                    raise ValueError(
+                        f"Registro {r['registro']}: data_type consentito solo per hr"
+                    )
 
                 cursor.execute("""
                     INSERT INTO registers
                         (registro_modbus, tipo_registro, registro_robot,
-                         descrizione, accesso)
-                    VALUES (%s,%s,%s,%s,%s)
+                         descrizione, accesso, data_type)
+                    VALUES (%s,%s,%s,%s,%s,%s)
                     ON DUPLICATE KEY UPDATE
                         tipo_registro  = VALUES(tipo_registro),
                         registro_robot = VALUES(registro_robot),
                         descrizione    = VALUES(descrizione),
-                        accesso        = VALUES(accesso)
+                        accesso        = VALUES(accesso),
+                        data_type      = VALUES(data_type)
                 """, (
                     str(r["registro"]),
-                    r["tipo_registro"],
+                    reg_type,
                     r.get("registro_robot", ""),
                     r.get("descrizione", ""),
                     accesso,
+                    data_type,
                 ))
 
             conn.commit()

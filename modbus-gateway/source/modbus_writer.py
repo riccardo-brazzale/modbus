@@ -29,6 +29,7 @@ from typing import Tuple
 from register_config import RegisterConfigManager
 from modbus_client import OptimizedModbusClient, ModbusDeviceError
 from logging_utils import setup_logger
+from register_validation import validate_value
 
 log = setup_logger("writer", "log.log")
 
@@ -219,7 +220,9 @@ class ModbusWriter(threading.Thread):
             reg_name = meta["registro_robot"]
 
             # ── Validazione valore (range / tipo) ─────────────────────────────
-            valid, reason = self._validate_value(addr, value)
+            valid, reason, normalized_value = validate_value(
+                meta["tipo_registro"], meta["data_type"], value
+            )
             if not valid:
                 log.error(
                     f"⛔ id={record_id}  @{addr} ({reg_name}) "
@@ -234,7 +237,7 @@ class ModbusWriter(threading.Thread):
 
             # ── Scrittura su Modbus ───────────────────────────────────────────
             try:
-                write_ok = self._write_modbus(addr, value)
+                write_ok = self._write_modbus(addr, normalized_value)
             except ModbusDeviceError as exc:
                 log.error(
                     f"⛔ id={record_id}  @{addr} ({reg_name}) "
@@ -254,9 +257,9 @@ class ModbusWriter(threading.Thread):
             # ── Valore numerico normalizzato ──────────────────────────────────
             rtype = meta["tipo_registro"]
             if rtype == "co":
-                norm_value = float(bool(int(value)))
+                norm_value = float(bool(int(normalized_value)))
             else:
-                norm_value = float(value)
+                norm_value = normalized_value
 
             params = (
                 str(addr),
@@ -265,14 +268,15 @@ class ModbusWriter(threading.Thread):
                 meta["tipo_registro"],
                 norm_value,
                 meta["accesso"],
+                meta["data_type"],
             )
 
             # ── Archivia WRITE su history ─────────────────────────────────────
             cursor.execute(
                 f"""INSERT INTO `{self.table_out}`
                         (indirizzo_modbus, registro_robot, descrizione,
-                         tipo_registro, valore, accesso, tipo_operazione)
-                    VALUES (%s,%s,%s,%s,%s,%s,'WRITE')""",
+                         tipo_registro, valore, accesso, data_type, tipo_operazione)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,'WRITE')""",
                 params,
             )
 
@@ -280,14 +284,15 @@ class ModbusWriter(threading.Thread):
             cursor.execute(
                 """INSERT INTO current_state
                        (indirizzo_modbus, registro_robot, descrizione,
-                        tipo_registro, valore, accesso)
-                   VALUES (%s,%s,%s,%s,%s,%s)
+                        tipo_registro, valore, accesso, data_type)
+                   VALUES (%s,%s,%s,%s,%s,%s,%s)
                    ON DUPLICATE KEY UPDATE
                        registro_robot = VALUES(registro_robot),
                        descrizione    = VALUES(descrizione),
                        tipo_registro  = VALUES(tipo_registro),
                        valore         = VALUES(valore),
                        accesso        = VALUES(accesso),
+                       data_type      = VALUES(data_type),
                        timestamp      = CURRENT_TIMESTAMP""",
                 params,
             )

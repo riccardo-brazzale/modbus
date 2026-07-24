@@ -1494,6 +1494,39 @@ function renderRoGrid() {
   }
 }
 
+function dataTypeBadgeHtml(r) {
+  return r.tipo_registro === 'hr'
+    ? `<span class="type-badge float-badge">${(r.data_type || 'int').toUpperCase()}</span>` : '';
+}
+
+function dataTypeSelectHtml(r) {
+  if (r.tipo_registro !== 'hr') return '';
+  const type = r.data_type || 'int';
+  return `<select class="type-badge float-badge" onchange="setRegisterDataType('${r.indirizzo_modbus}', this.value)">
+    <option value="int" ${type === 'int' ? 'selected' : ''}>INT</option>
+    <option value="float" ${type === 'float' ? 'selected' : ''}>FLOAT</option>
+  </select>`;
+}
+
+async function setRegisterDataType(addr, dataType) {
+  try {
+    const response = await fetch(`/api/registers/${addr}/data-type`, {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({data_type: dataType})
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'Aggiornamento non riuscito');
+    [state.roData[addr], state.rwData[addr]].filter(Boolean)
+      .forEach(reg => reg.data_type = dataType);
+    renderRoGrid();
+    renderRwTable();
+    alert('Tipo dato aggiornato. Riavvia il gateway per applicare la nuova validazione.');
+  } catch (error) {
+    alert(`Errore aggiornamento tipo dato: ${error.message}`);
+    pollRo(); pollRw();
+  }
+}
+
 function renderCardContent(card, r) {
   const valDisplay = r.tipo_registro === 'co'
     ? (r.valore ? '⬤ ON' : '○ OFF')
@@ -1504,7 +1537,7 @@ function renderCardContent(card, r) {
       <span>@${r.indirizzo_modbus}</span>
       <div>
         <span class="type-badge ${r.tipo_registro}">${r.tipo_registro.toUpperCase()}</span>
-        ${r.tipo_registro === 'hr' ? '<span class="type-badge float-badge">FLOAT</span>' : ''}
+        ${dataTypeSelectHtml(r)}
       </div>
     </div>
     <div class="reg-name">${r.registro_robot || '—'}</div>
@@ -1684,7 +1717,7 @@ function renderRwTable() {
         value="${dirty !== undefined ? dirty : ''}"
         class="${dirty !== undefined ? 'dirty' : ''}"
         data-addr="${addr}"
-        oninput="handleRwInput(this, '${addr}', 'hr')"
+        oninput="handleRwInput(this, '${addr}', '${r.data_type || 'int'}')"
         onkeydown="if(event.key==='Enter') sendCommands()">`;
     }
 
@@ -1698,7 +1731,7 @@ function renderRwTable() {
       <td class="td-desc" title="${r.descrizione || ''}">${r.descrizione || '—'}</td>
       <td>
         <span class="type-badge ${r.tipo_registro}">${r.tipo_registro.toUpperCase()}</span>
-        ${r.tipo_registro === 'hr' ? '<span class="type-badge float-badge" style="margin-left: 4px;">FLOAT</span>' : ''}
+        ${dataTypeSelectHtml(r)}
       </td>
       <td class="td-cur" id="cur-${addr}">${curVal}</td>
       <td class="td-input">${inputCell}</td>
@@ -1708,16 +1741,21 @@ function renderRwTable() {
   updatePendingCount();
 }
 
-function handleRwInput(input, addr, type) {
+function significantDigits(value) {
+  const s = String(value).toLowerCase().split('e')[0].replace(/[+\-.]/g, '').replace(/^0+/, '');
+  return s.length || 1;
+}
+
+function handleRwInput(input, addr, dataType) {
   const val = input.value.trim();
   if (val === '') {
     delete state.dirtyFields[addr];
     input.classList.remove('dirty', 'error-input');
   } else {
     const num = Number(val);
-    const decPart = val.split('.')[1];
-    const tooManyDecimals = decPart && decPart.length > 5;
-    if (isNaN(num) || tooManyDecimals || Math.abs(num) > 3.40282347e38) {
+    const invalidInt = dataType === 'int' && (!Number.isInteger(num) || Math.abs(num) > 16777216);
+    const invalidFloat = dataType === 'float' && significantDigits(val) > 7;
+    if (!Number.isFinite(num) || Math.abs(num) > 3.4028235e38 || invalidInt || invalidFloat) {
       input.classList.add('error-input');
       input.classList.remove('dirty');
     } else {
