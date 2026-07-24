@@ -38,6 +38,7 @@ import configparser
 from typing import Dict, List, Optional
 
 from register_config import RegisterConfigManager
+from register_validation import normalize_float32_value
 from modbus_client import OptimizedModbusClient, ModbusDeviceError
 from logging_utils import setup_logger
 
@@ -581,15 +582,18 @@ class ModbusReader(threading.Thread):
     # ──────────────────────────────────────────────────────────────────────────
 
     @staticmethod
-    def _normalize_value(val: object, tipo_registro: str) -> float:
+    def _normalize_value(val: object, tipo_registro: str, data_type: str | None) -> float:
         """
         Converte il valore letto dal bus nel tipo numerico da salvare in DB.
 
         coil → int(0 o 1)  poi float  (evita ambiguità True/False in MySQL)
-        hr   → float        (preserva il valore float/int 32-bit con i decimali)
+        hr float → float con 7 cifre significative (rimuove artefatti IEEE-754)
+        hr int   → float (preserva il valore intero a 32 bit)
         """
         if tipo_registro == "co":
             return float(int(bool(val)))
+        if data_type == "float":
+            return normalize_float32_value(val)
         return float(val)
 
     # ──────────────────────────────────────────────────────────────────────────
@@ -640,7 +644,9 @@ class ModbusReader(threading.Thread):
         with self.cache_lock:
             for addr, raw_val in readings.items():
                 meta      = self.registers[addr]
-                norm_val  = self._normalize_value(raw_val, meta["tipo_registro"])
+                norm_val  = self._normalize_value(
+                    raw_val, meta["tipo_registro"], meta["data_type"]
+                )
 
                 # Confronto con valore in cache (None forzato sempre a variazione)
                 cached = self.cache.get(addr)

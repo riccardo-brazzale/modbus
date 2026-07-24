@@ -1307,9 +1307,10 @@ let statusTimer = null;
 ═══════════════════════════════════════════════════════ */
 const $ = id => document.getElementById(id);
 
-function fmt(v) {
+function fmt(v, dataType = null) {
   if (v === null || v === undefined) return '—';
   if (typeof v === 'number') {
+    if (dataType === 'float') return v.toFixed(5);
     if (Number.isInteger(v)) return v.toString();
     return v.toFixed(5).replace(/\.?0+$/, "");
   }
@@ -1526,7 +1527,7 @@ function dataTypeBadgeHtml(r) {
 function renderCardContent(card, r) {
   const valDisplay = r.tipo_registro === 'co'
     ? (r.valore ? '⬤ ON' : '○ OFF')
-    : fmt(r.valore);
+    : fmt(r.valore, r.data_type);
 
   card.innerHTML = `
     <div class="reg-addr">
@@ -1548,7 +1549,7 @@ function updateCard(card, r, changed) {
   const tsEl  = card.querySelector('.reg-ts');
   const newVal = r.tipo_registro === 'co'
     ? (r.valore ? '⬤ ON' : '○ OFF')
-    : fmt(r.valore);
+    : fmt(r.valore, r.data_type);
 
   if (valEl) valEl.textContent = newVal;
   if (tsEl)  tsEl.textContent  = fmtTs(r.timestamp);
@@ -1582,7 +1583,7 @@ function addToChangeFeed(addrs, allData) {
     const item = document.createElement('div');
     item.className = 'change-item';
     const val = r.tipo_registro === 'co'
-      ? (r.valore ? 'ON' : 'OFF') : fmt(r.valore);
+      ? (r.valore ? 'ON' : 'OFF') : fmt(r.valore, r.data_type);
     item.innerHTML = `
       <div class="change-addr">@${addr} ${r.registro_robot || ''}</div>
       <div class="change-vals">→ ${val}</div>
@@ -1652,7 +1653,7 @@ async function pollRw() {
         if (curCell) {
           const newVal = reg.tipo_registro === 'co'
             ? (reg.valore ? '⬤ ON' : '○ OFF')
-            : fmt(reg.valore);
+            : fmt(reg.valore, reg.data_type);
           curCell.textContent = newVal;
           curCell.classList.remove('val-changed');
           void curCell.offsetWidth;
@@ -1692,7 +1693,7 @@ function renderRwTable() {
     const dirty = state.dirtyFields[addr];
     const curVal = r.tipo_registro === 'co'
       ? (r.valore ? '⬤ ON' : '○ OFF')
-      : fmt(r.valore);
+      : fmt(r.valore, r.data_type);
 
     const tr = document.createElement('tr');
     tr.dataset.addr = addr;
@@ -1709,7 +1710,7 @@ function renderRwTable() {
         </div>`;
     } else {
       inputCell = `<input type="number" step="any"
-        placeholder="${fmt(r.valore)}"
+        placeholder="${fmt(r.valore, r.data_type)}"
         value="${dirty !== undefined ? dirty : ''}"
         class="${dirty !== undefined ? 'dirty' : ''}"
         data-addr="${addr}"
@@ -1811,7 +1812,7 @@ async function sendCommands() {
       const reg = state.rwData[res.address];
       if (reg) reg.valore = res.value;
       delete state.dirtyFields[res.address];
-      addToSentFeed(res);
+      addToSentFeed(res, reg?.data_type);
     }
 
     state.rwStats.success += (d.results || []).length;
@@ -1855,13 +1856,13 @@ async function sendCommands() {
   }
 }
 
-function addToSentFeed(res) {
+function addToSentFeed(res, dataType) {
   const feed = $('sent-feed');
   const item = document.createElement('div');
   item.className = 'change-item';
   item.innerHTML = `
     <div class="change-addr">@${res.address}</div>
-    <div class="change-vals">← ${fmt(res.value)}</div>
+    <div class="change-vals">← ${fmt(res.value, dataType)}</div>
     <div class="change-ts">${now()}</div>
   `;
   feed.prepend(item);
@@ -1897,7 +1898,7 @@ async function loadHistory() {
         <td style="color:var(--text-dim);font-size:11px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
           title="${row.descrizione || ''}">${row.descrizione || '—'}</td>
         <td><span class="type-badge ${row.tipo_registro || 'co'}">${(row.tipo_registro||'?').toUpperCase()}</span></td>
-        <td style="font-family:var(--mono)">${fmt(row.valore)}</td>
+        <td style="font-family:var(--mono)">${fmt(row.valore, row.data_type)}</td>
         <td><span class="type-badge ${row.accesso || 'ro'}" style="opacity:.7">${(row.accesso||'ro').toUpperCase()}</span></td>
         <td><span class="op-badge ${row.tipo_operazione}">${row.tipo_operazione}</span></td>
       `;

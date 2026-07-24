@@ -24,6 +24,18 @@ def _significant_digits(value: Decimal) -> int:
     return len(digits) or 1
 
 
+def normalize_float32_value(value) -> float:
+    """Rimuove il rumore di conversione da float32 mantenendo 7 cifre significative.
+
+    Un valore Modbus come ``4587.456`` viene fisicamente rappresentato come
+    float32 e, una volta riletto, Python lo espone ad esempio come
+    ``4587.4560546875``. Sette cifre significative sono anche il limite
+    accettato in input per i registri ``FLOAT``: questa normalizzazione rende
+    quindi stabile il valore archiviato senza ridurre la precisione ammessa.
+    """
+    return float(format(float(value), f".{FLOAT32_SIGNIFICANT_DIGITS}g"))
+
+
 def validate_value(tipo_registro: str, data_type: str | None, raw_value):
     """Restituisce ``(valido, messaggio, valore_normalizzato)``."""
     try:
