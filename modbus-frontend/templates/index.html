@@ -94,10 +94,7 @@ html, body {
 .hdr-brand {
   display: flex;
   align-items: center;
-  margin-right: auto; /* Spinge gli elementi a destra */
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
+  margin-right: auto;
 }
 
 .hdr-logo-img {
@@ -132,6 +129,13 @@ html, body {
   gap: 16px;
   justify-content: flex-end;
   margin-left: auto; /* Spinge a destra */
+}
+
+/* Endpoint Modbus del robot, mantenuto al centro dell'header. */
+.hdr-robot-endpoint {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
 }
 
 .info-pill {
@@ -201,6 +205,7 @@ html, body {
 
 @media (max-width: 600px) {
   #header { padding: 0 12px; gap: 8px; }
+  .hdr-robot-endpoint { position: static; transform: none; }
   .info-pill { padding: 5px 7px; }
   .info-pill .lbl { display: none; }
   .hdr-status { gap: 6px; }
@@ -1004,8 +1009,15 @@ table.history-table tbody td { padding: 7px 12px; vertical-align: middle; }
 
 <!-- ══════════════════════ HEADER ══════════════════════ -->
 <header id="header">
-  <div class="hdr-brand" style="position:static; transform:none; margin-right:auto;">
+  <div class="hdr-brand">
     <img class="hdr-logo-img" src="{{ url_for('static', filename='img/lokermann-logo.jpg') }}" alt="Lokermann - Just Be Stronger">
+  </div>
+
+  <div class="hdr-robot-endpoint">
+    <div class="info-pill">
+      <span class="lbl">Robot</span>
+      <span class="val">{{ server_ip }}:{{ server_port }}</span>
+    </div>
   </div>
 
   <div class="hdr-info">
