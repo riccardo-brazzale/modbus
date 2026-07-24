@@ -1499,34 +1499,6 @@ function dataTypeBadgeHtml(r) {
     ? `<span class="type-badge float-badge">${(r.data_type || 'int').toUpperCase()}</span>` : '';
 }
 
-function dataTypeSelectHtml(r) {
-  if (r.tipo_registro !== 'hr') return '';
-  const type = r.data_type || 'int';
-  return `<select class="type-badge float-badge" onchange="setRegisterDataType('${r.indirizzo_modbus}', this.value)">
-    <option value="int" ${type === 'int' ? 'selected' : ''}>INT</option>
-    <option value="float" ${type === 'float' ? 'selected' : ''}>FLOAT</option>
-  </select>`;
-}
-
-async function setRegisterDataType(addr, dataType) {
-  try {
-    const response = await fetch(`/api/registers/${addr}/data-type`, {
-      method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({data_type: dataType})
-    });
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.error || 'Aggiornamento non riuscito');
-    [state.roData[addr], state.rwData[addr]].filter(Boolean)
-      .forEach(reg => reg.data_type = dataType);
-    renderRoGrid();
-    renderRwTable();
-    alert('Tipo dato aggiornato. Riavvia il gateway per applicare la nuova validazione.');
-  } catch (error) {
-    alert(`Errore aggiornamento tipo dato: ${error.message}`);
-    pollRo(); pollRw();
-  }
-}
-
 function renderCardContent(card, r) {
   const valDisplay = r.tipo_registro === 'co'
     ? (r.valore ? '⬤ ON' : '○ OFF')
@@ -1537,7 +1509,7 @@ function renderCardContent(card, r) {
       <span>@${r.indirizzo_modbus}</span>
       <div>
         <span class="type-badge ${r.tipo_registro}">${r.tipo_registro.toUpperCase()}</span>
-        ${dataTypeSelectHtml(r)}
+        ${dataTypeBadgeHtml(r)}
       </div>
     </div>
     <div class="reg-name">${r.registro_robot || '—'}</div>
@@ -1731,7 +1703,7 @@ function renderRwTable() {
       <td class="td-desc" title="${r.descrizione || ''}">${r.descrizione || '—'}</td>
       <td>
         <span class="type-badge ${r.tipo_registro}">${r.tipo_registro.toUpperCase()}</span>
-        ${dataTypeSelectHtml(r)}
+        ${dataTypeBadgeHtml(r)}
       </td>
       <td class="td-cur" id="cur-${addr}">${curVal}</td>
       <td class="td-input">${inputCell}</td>

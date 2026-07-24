@@ -5,7 +5,6 @@ Interfaccia web industriale per monitoraggio e controllo registri Modbus.
 """
 
 import configparser
-import json
 import os
 import time
 import threading
@@ -61,10 +60,6 @@ SYSTEMCTL_BIN = next(
 
 TABLE_OUT   = cfg["database"]["base_table_out"]
 TABLE_IN    = cfg["database"]["base_table_in"]
-REGISTERS_JSON = Path(cfg.get("gateway", "registers_json_path", fallback=str(
-    Path(__file__).resolve().parent.parent / "modbus-gateway" / "registers.json"
-)))
-
 app = Flask(__name__)
 CORS(app)
 
@@ -294,28 +289,6 @@ def api_write():
             errors.append({"address": addr, "error": str(e)})
 
     return jsonify({"queued": len(results), "errors": len(errors), "results": results, "error_details": errors, "timestamp": datetime.now().isoformat()}), (200 if not errors else 207)
-
-@app.route("/api/registers/<addr>/data-type", methods=["POST"])
-def api_update_data_type(addr):
-    body = request.get_json(force=True, silent=True) or {}
-    data_type = body.get("data_type")
-    if data_type not in {"int", "float"}:
-        return jsonify({"error": "data_type deve essere int o float"}), 400
-    try:
-        records = json.loads(REGISTERS_JSON.read_text(encoding="utf-8"))
-        record = next((r for r in records if str(r.get("registro")) == str(addr)), None)
-        if not record:
-            return jsonify({"error": "Registro non trovato"}), 404
-        if record.get("tipo_registro") != "hr":
-            return jsonify({"error": "data_type modificabile solo per holding register"}), 400
-        record["data_type"] = data_type
-        REGISTERS_JSON.write_text(json.dumps(records, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-        db_execute("UPDATE registers SET data_type=%s WHERE registro_modbus=%s", (data_type, str(addr)))
-        db_execute("UPDATE current_state SET data_type=%s WHERE indirizzo_modbus=%s", (data_type, str(addr)))
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-    return jsonify({"address": str(addr), "data_type": data_type,
-                    "gateway_restart_required": True})
 
 @app.route("/api/history/changes")
 def api_history_changes():
