@@ -38,6 +38,14 @@ from register_validation import validate_value
 cfg = configparser.ConfigParser()
 cfg.read("config.ini")
 
+# L'indirizzo del dispositivo Modbus ha una sola fonte autorevole: la
+# configurazione del gateway. Il frontend mantiene il fallback alla propria
+# configurazione solo per installazioni precedenti all'introduzione di questa
+# impostazione.
+gateway_cfg = configparser.ConfigParser()
+gateway_config_path = GATEWAY_ROOT / "config.ini"
+gateway_cfg.read(gateway_config_path)
+
 DB_CONFIG = {
     "host":     cfg["database"]["host"],
     "user":     cfg["database"]["user"],
@@ -45,8 +53,9 @@ DB_CONFIG = {
     "database": cfg["database"]["database"],
 }
 
-MODBUS_IP   = cfg["modbus_server"]["ip"]
-MODBUS_PORT = cfg["modbus_server"]["port"]
+modbus_cfg = gateway_cfg["modbus_server"] if "modbus_server" in gateway_cfg else cfg["modbus_server"]
+MODBUS_IP   = modbus_cfg["ip"]
+MODBUS_PORT = modbus_cfg["port"]
 
 GATEWAY_SERVICE_NAME = "modbus_gateway.service"
 
