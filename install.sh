@@ -441,5 +441,5 @@ rm -f -- \
     "${GATEWAY_DIR}/requirements.txt" \
     "${FRONTEND_DIR}/requirements.txt" \
     "${PROJECT_ROOT}/install.sh" \
-    "${FRONTEND_DIR}/config_init.example"
+    "${FRONTEND_DIR}/config.ini.example"
     
