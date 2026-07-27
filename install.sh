@@ -375,18 +375,14 @@ fi
 step "Configurazione cron per la pulizia dello storico (purge_history.py)"
 
 CRON_CMD="cd ${GATEWAY_DIR} && ${VENV_DIR}/bin/python purge_history.py >> ${GATEWAY_DIR}/logs/cron_purge.log 2>&1"
-CRON_LINE="0 3 * * * ${CRON_CMD}"
+CRON_LINE="00 10 * * * ${CRON_CMD}"
 
-# Idempotente: installa il cron per l'utente di sistema 'modbus' solo se non
-# già presente (confronto sul comando, non sull'intera riga, per tollerare
-# eventuali modifiche future all'orario).
+# Idempotente: sostituisce solo l'eventuale cron precedente di purge_history,
+# preservando tutte le altre righe dell'utente di sistema 'modbus'.
 EXISTING_CRON=$(crontab -u "$SERVICE_USER" -l 2>/dev/null || true)
-if echo "$EXISTING_CRON" | grep -qF "purge_history.py"; then
-    ok "Cron di pulizia già presente per l'utente ${SERVICE_USER}"
-else
-    { echo "$EXISTING_CRON"; echo "$CRON_LINE"; } | grep -v '^$' | crontab -u "$SERVICE_USER" -
-    ok "Cron installato: pulizia storico ogni giorno alle 03:00"
-fi
+FILTERED_CRON=$(echo "$EXISTING_CRON" | grep -vF "purge_history.py" || true)
+{ echo "$FILTERED_CRON"; echo "$CRON_LINE"; } | grep -v '^$' | crontab -u "$SERVICE_USER" -
+ok "Cron installato/aggiornato: pulizia storico ogni giorno alle 10:00"
 
 # ─────────────────────────────────────────────────────────────────────────
 # FASE 11 — RIMOZIONE SORGENTI IN CHIARO
