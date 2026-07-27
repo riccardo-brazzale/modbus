@@ -80,7 +80,6 @@ chmod +x \
     "${PROJECT_ROOT}/install.sh" \
     "${GATEWAY_DIR}/install_database.py" \
     "${GATEWAY_DIR}/protect_with_pyarmor.py" \
-    "${GATEWAY_DIR}/source/purge_history.py" \
     2>/dev/null || true
 
 ok "Permessi di esecuzione impostati"
@@ -285,7 +284,6 @@ RUNTIME_OK=0
 if compgen -G "${GATEWAY_DIR}/pyarmor_runtime_*/pyarmor_runtime*" > /dev/null 2>&1; then
     RUNTIME_OK=1
 fi
-
 if [[ "$SOURCE_HAS_PY" -gt 0 && "$RUNTIME_OK" -eq 0 ]]; then
     warn "Runtime PyArmor mancante o non generato su questa macchina: avvio build offuscato"
     # protect_with_pyarmor.py invoca l'eseguibile "pyarmor" tramite
@@ -444,7 +442,6 @@ rm -f -- \
     "${GATEWAY_DIR}/protect_with_pyarmor.py" \
     "${GATEWAY_DIR}/config_init.example" \
     "${GATEWAY_DIR}/install_database.py" \
-    "${GATEWAY_DIR}/purge_history.py" \
     "${GATEWAY_DIR}/requirements.txt" \
     "${FRONTEND_DIR}/requirements.txt" \
     "${PROJECT_ROOT}/install.sh"
