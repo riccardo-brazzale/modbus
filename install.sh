@@ -440,4 +440,6 @@ rm -f -- \
     "${GATEWAY_DIR}/install_database.py" \
     "${GATEWAY_DIR}/requirements.txt" \
     "${FRONTEND_DIR}/requirements.txt" \
-    "${PROJECT_ROOT}/install.sh"
+    "${PROJECT_ROOT}/install.sh" \
+    "${FRONTEND_DIR}/config_init.example"
+    
