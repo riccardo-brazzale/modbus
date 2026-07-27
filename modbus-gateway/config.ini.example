@@ -11,6 +11,10 @@ log_dir = logs
 level = INFO
 retention_days = 7
 
+[history_purge]
+# Giorni di storico da mantenere nella tabella history
+retention_days = 30
+
 [modbus_server]
 # Ip del robot
 ip = xxx.yyy.zzz.www

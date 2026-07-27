@@ -19,8 +19,6 @@ from mysql.connector import Error
 
 # --- Configurazione ---
 CONFIG_FILE = 'config.ini'
-# Giorni di retention (modifica questo valore)
-RETENTION_DAYS = 30
 
 # Setup logging
 LOG_DIR = Path(__file__).parent / 'logs'
@@ -40,7 +38,8 @@ logger = logging.getLogger(__name__)
 def load_config():
     """
     Carica la configurazione dal file config.ini.
-    Si aspetta una sezione [database] con i parametri di connessione
+    Si aspetta una sezione [database] con i parametri di connessione e una
+    sezione [history_purge] con il numero di giorni da mantenere.
     (stessa sezione usata da install_database.py, modbus_reader.py e
     modbus_writer.py — configparser è case-sensitive sui nomi di sezione).
     """
@@ -50,7 +49,15 @@ def load_config():
     if 'database' not in config:
         logger.error("❌ Sezione [database] non trovata in config.ini")
         logger.error("   Assicurati che il file config.ini esista e sia configurato correttamente.")
-        return None
+        return None, None
+
+    try:
+        retention_days = config.getint('history_purge', 'retention_days')
+        if retention_days < 1:
+            raise ValueError('deve essere maggiore di zero')
+    except (configparser.NoSectionError, configparser.NoOptionError, ValueError) as e:
+        logger.error(f"Retention [history_purge]/retention_days non valida: {e}")
+        return None, None
 
     db_config = {
         'host': config.get('database', 'host', fallback='localhost'),
@@ -63,9 +70,9 @@ def load_config():
     }
 
     logger.info(f"📊 Connessione al database: {db_config['database']} su {db_config['host']}")
-    return db_config
+    return db_config, retention_days
 
-def purge_old_records(db_config, days=RETENTION_DAYS):
+def purge_old_records(db_config, days):
     """
     Elimina i record più vecchi di 'days' giorni dalla tabella robot_data.
     Utilizza la colonna 'timestamp' per determinare l'età dei record.
@@ -136,15 +143,15 @@ def main():
     logger.info("=" * 60)
     
     # Carica la configurazione
-    db_config = load_config()
+    db_config, retention_days = load_config()
     if not db_config:
         logger.error("Impossibile caricare la configurazione del database. Verifica config.ini")
         return
     
-    logger.info(f"🔧 Retention configurata: {RETENTION_DAYS} giorni")
+    logger.info(f"🔧 Retention configurata: {retention_days} giorni")
     
     # Esegui la pulizia
-    success = purge_old_records(db_config, RETENTION_DAYS)
+    success = purge_old_records(db_config, retention_days)
     
     if success:
         logger.info("✅ Pulizia completata con successo.")

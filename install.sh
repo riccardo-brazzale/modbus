@@ -80,7 +80,7 @@ chmod +x \
     "${PROJECT_ROOT}/install.sh" \
     "${GATEWAY_DIR}/install_database.py" \
     "${GATEWAY_DIR}/protect_with_pyarmor.py" \
-    "${GATEWAY_DIR}/purge_history.py" \
+    "${GATEWAY_DIR}/source/purge_history.py" \
     2>/dev/null || true
 
 ok "Permessi di esecuzione impostati"
@@ -233,6 +233,19 @@ generate_config() {
 
 generate_config "${GATEWAY_DIR}/config.ini.example"  "${GATEWAY_DIR}/config.ini"
 generate_config "${FRONTEND_DIR}/config.ini.example" "${FRONTEND_DIR}/config.ini"
+
+# Le installazioni precedenti non hanno la sezione [history_purge]. La
+# aggiungiamo senza sovrascrivere una retention già impostata dall'utente.
+if ! grep -q '^\[history_purge\]$' "${GATEWAY_DIR}/config.ini"; then
+    printf '\n[history_purge]\nretention_days = 30\n' >> "${GATEWAY_DIR}/config.ini"
+elif ! awk '
+    /^\[history_purge\]$/ { in_section=1; next }
+    in_section && /^\[/ { in_section=0 }
+    in_section && /^retention_days[[:space:]]*=/ { found=1 }
+    END { exit(found ? 0 : 1) }
+' "${GATEWAY_DIR}/config.ini"; then
+    sed -i '/^\[history_purge\]$/a retention_days = 30' "${GATEWAY_DIR}/config.ini"
+fi
 
 # Precompila automaticamente le sole voci relative al database, che sono
 # sempre note in questo contesto di installazione. L'IP del server Modbus
@@ -431,6 +444,7 @@ rm -f -- \
     "${GATEWAY_DIR}/protect_with_pyarmor.py" \
     "${GATEWAY_DIR}/config_init.example" \
     "${GATEWAY_DIR}/install_database.py" \
+    "${GATEWAY_DIR}/purge_history.py" \
     "${GATEWAY_DIR}/requirements.txt" \
     "${FRONTEND_DIR}/requirements.txt" \
     "${PROJECT_ROOT}/install.sh"
