@@ -427,4 +427,10 @@ echo
 # l'installazione o un runtime PyArmor legato a un Machine ID diverso.
 # rm sul proprio $0 mentre lo script gira è sicuro: bash ha già bufferizzato
 # tutto il codice necessario prima di arrivare a questo punto.
-rm -f -- "${PROJECT_ROOT}/install.sh"
+rm -f -- \
+    "${GATEWAY_DIR}/protect_with_pyarmor.py" \
+    "${GATEWAY_DIR}/config_init.example" \
+    "${GATEWAY_DIR}/install_database.py" \
+    "${GATEWAY_DIR}/requirements.txt" \
+    "${FRONTEND_DIR}/requirements.txt" \
+    "${PROJECT_ROOT}/install.sh"
