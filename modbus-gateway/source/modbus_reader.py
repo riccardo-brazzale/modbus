@@ -30,11 +30,14 @@ OTTIMIZZAZIONI:
   - _sync_cache_from_writer() con throttle e filtro RW-only.
 """
 
+import json
+import os
 import time
 import threading
 import mysql.connector
 from mysql.connector import errors as mysql_errors
 import configparser
+from pathlib import Path
 from typing import Dict, List, Optional
 
 from register_config import RegisterConfigManager
@@ -157,6 +160,19 @@ class ModbusReader(threading.Thread):
         """Inizializza i flag di stato del thread."""
         self.running:   bool = True
         self.connected: bool = False   # connessione Modbus attiva
+        # systemd permette al gateway di scrivere solo nella cartella logs.
+        self._status_file = Path("logs") / "robot_connection_status.json"
+        self._publish_connection_status()
+
+    def _publish_connection_status(self) -> None:
+        """Pubblica in modo atomico lo stato della comunicazione col robot."""
+        payload = {"connected": self.connected, "updated_at": time.time()}
+        temporary_file = self._status_file.with_suffix(".tmp")
+        try:
+            temporary_file.write_text(json.dumps(payload), encoding="utf-8")
+            os.replace(temporary_file, self._status_file)
+        except OSError as e:
+            log.warning(f"Impossibile aggiornare stato connessione robot: {e}")
 
     # ──────────────────────────────────────────────────────────────────────────
     # BATCH GROUPS
@@ -388,9 +404,12 @@ class ModbusReader(threading.Thread):
             try:
                 if self.mb.connect():
                     self.connected = True
+                    self._publish_connection_status()
                     log.info("✅ Modbus connesso")
                     return True
             except Exception as e:
+                self.connected = False
+                self._publish_connection_status()
                 log.warning(
                     f"Modbus non disponibile — {type(e).__name__}: {e} | "
                     f"retry tra {RECONNECT_INTERVAL}s"
@@ -759,6 +778,7 @@ class ModbusReader(threading.Thread):
                 # Riconnessione Modbus se necessario
                 if not self.connected:
                     self.mb.close()
+                    self._publish_connection_status()
                     if not self._wait_for_modbus():
                         break
                     # Dopo riconnessione: reset throttle errori e cache invalida
@@ -767,6 +787,7 @@ class ModbusReader(threading.Thread):
                     log.info("🔄 Cache resettata dopo riconnessione Modbus")
 
                 self.cycle()
+                self._publish_connection_status()
 
             except Exception as e:
                 log.error(
@@ -774,9 +795,12 @@ class ModbusReader(threading.Thread):
                     f"connected={self.connected}"
                 )
                 self.connected = False
+                self._publish_connection_status()
 
             time.sleep(self.interval)
 
+        self.connected = False
+        self._publish_connection_status()
         log.info("⏹️  Loop Reader terminato")
 
     # ──────────────────────────────────────────────────────────────────────────

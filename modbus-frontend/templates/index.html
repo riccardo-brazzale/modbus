@@ -1404,13 +1404,13 @@ async function pollStatus() {
     const d   = await statusRes.json();
     const svc = await svcRes.json();
 
-    // ONLINE solo se il DB risponde E il servizio modbus_gateway.service
-    // risulta "active" su systemd.
-    const ok = d.db_connected && svc.active;
+    // ONLINE solo se DB, servizio gateway e comunicazione Modbus col robot
+    // sono tutti disponibili.
+    const ok = d.db_connected && svc.active && d.robot_connected;
     $('status-dot').className = 'status-dot' + (ok ? '' : ' offline');
     $('status-label').className = 'status-label' + (ok ? '' : ' offline');
     $('status-label').textContent = ok ? 'ONLINE' : 'OFFLINE';
-    $('status-label').title = ok ? '' : `modbus_gateway.service: ${svc.state || 'sconosciuto'}`;
+    $('status-label').title = ok ? '' : `modbus_gateway.service: ${svc.state || 'sconosciuto'}; robot: ${d.robot_status || 'sconosciuto'}`;
     $('last-update').textContent = fmtTs(d.timestamp);
 
     if (d.counts) {

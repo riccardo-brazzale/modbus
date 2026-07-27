@@ -5,6 +5,7 @@ Interfaccia web industriale per monitoraggio e controllo registri Modbus.
 """
 
 import configparser
+import json
 import os
 import time
 import threading
@@ -58,6 +59,8 @@ MODBUS_IP   = modbus_cfg["ip"]
 MODBUS_PORT = modbus_cfg["port"]
 
 GATEWAY_SERVICE_NAME = "modbus_gateway.service"
+ROBOT_CONNECTION_STATUS_FILE = GATEWAY_ROOT / "logs" / "robot_connection_status.json"
+ROBOT_CONNECTION_STATUS_MAX_AGE = 15
 
 # Il servizio modbus_frontend.service imposta Environment="PATH=<venv>/bin",
 # quindi cercare "systemctl" nel PATH non lo trova: usiamo il percorso
@@ -198,8 +201,25 @@ def api_status():
     except Exception:
         counts = {}
 
+    robot_connected = False
+    robot_status = "stato non ancora pubblicato dal gateway"
+    try:
+        status_data = json.loads(ROBOT_CONNECTION_STATUS_FILE.read_text(encoding="utf-8"))
+        age = time.time() - float(status_data["updated_at"])
+        if age > ROBOT_CONNECTION_STATUS_MAX_AGE:
+            robot_status = "aggiornamento stato gateway scaduto"
+        elif status_data.get("connected"):
+            robot_connected = True
+            robot_status = "connesso"
+        else:
+            robot_status = "gateway non connesso al robot"
+    except (OSError, ValueError, KeyError, TypeError):
+        pass
+
     return jsonify({
         "db_connected": db_ok,
+        "robot_connected": robot_connected,
+        "robot_status": robot_status,
         "server_ip": MODBUS_IP,
         "server_port": MODBUS_PORT,
         "timestamp": datetime.now().isoformat(),
