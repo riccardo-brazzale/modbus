@@ -231,11 +231,11 @@ if [ "${MODBUS_DB_REMOTE_ACCESS:-0}" = "1" ]; then
         warn "File di configurazione MariaDB non trovato in ${MARIADB_CNF}, bind-address non modificato"
     fi
 
-    mysql -u root <<SQL
-    CREATE USER IF NOT EXISTS '${DB_USER}'@'%' IDENTIFIED BY '${DB_PASS}';
-    GRANT ALL PRIVILEGES ON \`${DB_NAME}\`.* TO '${DB_USER}'@'%';
-    FLUSH PRIVILEGES;
-    SQL
+mysql -u root <<SQL
+CREATE USER IF NOT EXISTS '${DB_USER}'@'%' IDENTIFIED BY '${DB_PASS}';
+GRANT ALL PRIVILEGES ON \`${DB_NAME}\`.* TO '${DB_USER}'@'%';
+FLUSH PRIVILEGES;
+SQL
 
     if command -v ufw >/dev/null 2>&1; then
         ufw allow 3306/tcp comment "MariaDB modbus_db remoto" || true
