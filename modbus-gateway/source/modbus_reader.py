@@ -300,15 +300,16 @@ class ModbusReader(threading.Thread):
 
     def _read_hr_with_split(self, start: int, addrs: List[int]) -> Dict[int, float]:
         """
-        Legge un gruppo di HR 32-bit con binary splitting adattivo come float.
+        Legge un gruppo di HR 32-bit con binary splitting adattivo.
 
         Ogni indirizzo logico occupa 2 word Modbus consecutive (big-endian):
-          valore = float (IEEE 754 a precisione singola)
+        data_type "float" -> IEEE-754 float32
+        data_type "int"   -> int32 con segno
 
         Se il server risponde ExceptionResponse(exc=2) dimezza il gruppo
         e riprova ricorsivamente fino al singolo HR (2 word).
 
-        Restituisce {addr: float} per gli indirizzi letti con successo.
+        Restituisce {addr: valore} per gli indirizzi letti con successo.
         """
         if not addrs:
             return {}
@@ -327,7 +328,10 @@ class ModbusReader(threading.Thread):
                     high         = response.registers[offset]
                     low          = response.registers[offset + 1]
                     bytes_value  = struct.pack(">HH", high, low)
-                    result[addr] = struct.unpack(">f", bytes_value)[0]
+                    if self.reg_mgr.get_data_type(addr) == "int":
+                        result[addr] = struct.unpack(">i", bytes_value)[0]
+                    else:
+                        result[addr] = struct.unpack(">f", bytes_value)[0]
                 return result
 
             exc_code = getattr(response, "exception_code", -1)
@@ -348,12 +352,8 @@ class ModbusReader(threading.Thread):
                 f"❌ HR @{start} DeviceError(exc={e.exception_code}): {e} | saltato",
             )
             return {}
-
-        except Exception as e:
-            log.error(f"❌ Connessione batch HR @{start}: {type(e).__name__}: {e}")
-            self.connected = False
-            return {}
-
+        
+        
     def _split_and_read_hr(self, addrs: List[int]) -> Dict[int, int]:
         """Dimezza la lista di indirizzi e legge ciascuna metà separatamente."""
         mid    = len(addrs) // 2
