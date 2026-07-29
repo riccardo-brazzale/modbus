@@ -252,9 +252,12 @@ class OptimizedModbusClient:
     # SCRITTURA HOLDING REGISTER 32-BIT
     # ──────────────────────────────────────────────────────────────────────────
 
-    def write_holding_register_32bit(self, address: int, value: float) -> bool:
+    def write_holding_register_32bit(self, address: int, value, data_type: str = "float") -> bool:
         """
-        Scrive un holding register a 32-bit (2 word consecutive, big-endian) come float.
+        Scrive un holding register a 32-bit (2 word consecutive, big-endian).
+
+        data_type == "float" -> IEEE-754 float32 (comportamento invariato)
+        data_type == "int"   -> int32 con segno, big-endian
 
         Solleva ModbusDeviceError se il server risponde con ExceptionResponse.
         """
@@ -262,15 +265,20 @@ class OptimizedModbusClient:
         if not self.is_connected:
             return False
         try:
-            fv = float(value)
             import struct
-            bytes_value = struct.pack(">f", fv)
+            if data_type == "int":
+                iv = int(value)
+                bytes_value = struct.pack(">i", iv)
+            else:
+                fv = float(value)
+                bytes_value = struct.pack(">f", fv)
+
             msw = int.from_bytes(bytes_value[:2], byteorder="big")
             lsw = int.from_bytes(bytes_value[2:], byteorder="big")
 
             response = self.client.write_registers(address, [msw, lsw])
             self._check_response(response, address)
-            log.info(f"✅ HR32 @{address} = {fv}  (0x{msw:04X}{lsw:04X})")
+            log.info(f"✅ HR32 @{address} = {value} ({data_type})  (0x{msw:04X}{lsw:04X})")
             return True
         except ModbusDeviceError:
             raise

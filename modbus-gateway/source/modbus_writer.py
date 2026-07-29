@@ -155,11 +155,12 @@ class ModbusWriter(threading.Thread):
             if rtype == "co":
                 return self.mb_client.write_coil(address, bool(int(float(value))))
             if rtype == "hr":
-                return self.mb_client.write_holding_register_32bit(address, float(value))
+                data_type = self.reg_mgr.get_data_type(address)
+                return self.mb_client.write_holding_register_32bit(address, value, data_type)
             log.error(f"⛔ Tipo registro non scrivibile: {rtype} @{address}")
             return False
         except ModbusDeviceError:
-            raise   # il ciclo cycle() lo cattura e scarta il record
+            raise
         except Exception as e:
             log.error(f"❌ Errore connessione scrittura @{address}: {e}")
             self.connected = False

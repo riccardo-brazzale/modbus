@@ -1,12 +1,14 @@
 """Validazione condivisa dei valori dei registri Modbus.
 
-Gli holding register continuano a viaggiare come float32 IEEE-754 a due word.
-``data_type`` stabilisce soltanto quali valori l'operatore puo' inserire.
+Gli holding register con data_type "float" viaggiano come float32 IEEE-754
+a due word. Quelli con data_type "int" viaggiano come int32 con segno a due
+word (vedi modbus_client.write_holding_register_32bit).
 """
 
 from decimal import Decimal, InvalidOperation
 FLOAT32_MAX = Decimal("3.4028235e38")
-INT_FLOAT32_MAX = Decimal("16777216")  # 2**24, tutti gli interi sono esatti
+INT32_MAX = Decimal("2147483647")   # 2**31 - 1, range int32 con segno
+INT32_MIN = Decimal("-2147483648")  # -2**31
 FLOAT32_SIGNIFICANT_DIGITS = 7
 
 
@@ -51,14 +53,16 @@ def validate_value(tipo_registro: str, data_type: str | None, raw_value):
             return False, "Holding Register: data_type non valido", None
 
         value = _decimal(raw_value)
-        if abs(value) > FLOAT32_MAX:
-            return False, "Holding Register: valore fuori dal range float32", None
         if data_type == "int":
             if value != value.to_integral_value():
                 return False, "Holding Register int: non sono ammesse cifre decimali", None
-            if abs(value) > INT_FLOAT32_MAX:
-                return False, "Holding Register int: valore fuori dal range ±16.777.216", None
-        elif _significant_digits(value) > FLOAT32_SIGNIFICANT_DIGITS:
+            if value < INT32_MIN or value > INT32_MAX:
+                return False, "Holding Register int: valore fuori dal range int32 (±2.147.483.647)", None
+            return True, "", int(value)
+
+        if abs(value) > FLOAT32_MAX:
+            return False, "Holding Register: valore fuori dal range float32", None
+        if _significant_digits(value) > FLOAT32_SIGNIFICANT_DIGITS:
             return False, "Holding Register float: massimo 7 cifre significative", None
         return True, "", float(value)
     except (InvalidOperation, ValueError, TypeError):
