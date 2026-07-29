@@ -1750,7 +1750,7 @@ function handleRwInput(input, addr, dataType) {
     input.classList.remove('dirty', 'error-input');
   } else {
     const num = Number(val);
-    const invalidInt = dataType === 'int' && (!Number.isInteger(num) || Math.abs(num) > 16777216);
+    const invalidInt = dataType === 'int' && (!Number.isInteger(num) || Math.abs(num) > 2147483647);
     const invalidFloat = dataType === 'float' && significantDigits(val) > 7;
     if (!Number.isFinite(num) || Math.abs(num) > 3.4028235e38 || invalidInt || invalidFloat) {
       input.classList.add('error-input');
