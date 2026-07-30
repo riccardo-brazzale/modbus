@@ -213,23 +213,17 @@ ok "Utente '${DB_USER}' e database '${DB_NAME}' pronti"
 # ─────────────────────────────────────────────────────────────────────────
 # FASE 4bis — ACCESSO REMOTO MARIADB (opzionale)
 # ─────────────────────────────────────────────────────────────────────────
-# Attivabile con: MODBUS_DB_REMOTE_ACCESS=1 sudo -E ./install.sh
-# ATTENZIONE: espone il DB su tutte le interfacce di rete (0.0.0.0), non
-# solo a un IP specifico. Da usare solo su reti fidate/isolate; se il
-# device è raggiungibile da Internet, meglio limitare l'accesso via VPN
-# o firewall a IP/subnet noti invece di aprirlo a '%'.
-if [ "${MODBUS_DB_REMOTE_ACCESS:-0}" = "1" ]; then
-    step "Abilitazione accesso remoto MariaDB (qualsiasi IP)"
+step "Abilitazione accesso remoto MariaDB"
 
-    MARIADB_CNF="/etc/mysql/mariadb.conf.d/50-server.cnf"
-    if [ -f "$MARIADB_CNF" ]; then
-        sed -i \
-            -e "s/^bind-address\s*=.*/bind-address = 0.0.0.0/" \
-            -e "s/^#bind-address\s*=.*/bind-address = 0.0.0.0/" \
-            "$MARIADB_CNF"
-    else
-        warn "File di configurazione MariaDB non trovato in ${MARIADB_CNF}, bind-address non modificato"
-    fi
+MARIADB_CNF="/etc/mysql/mariadb.conf.d/50-server.cnf"
+if [ -f "$MARIADB_CNF" ]; then
+    sed -i \
+        -e "s/^bind-address\s*=.*/bind-address = 0.0.0.0/" \
+        -e "s/^#bind-address\s*=.*/bind-address = 0.0.0.0/" \
+        "$MARIADB_CNF"
+else
+    warn "File di configurazione MariaDB non trovato in ${MARIADB_CNF}, bind-address non modificato"
+fi
 
 mysql -u root <<SQL
 CREATE USER IF NOT EXISTS '${DB_USER}'@'%' IDENTIFIED BY '${DB_PASS}';
@@ -237,14 +231,13 @@ GRANT ALL PRIVILEGES ON \`${DB_NAME}\`.* TO '${DB_USER}'@'%';
 FLUSH PRIVILEGES;
 SQL
 
-    if command -v ufw >/dev/null 2>&1; then
-        ufw allow 3306/tcp comment "MariaDB modbus_db remoto" || true
-    fi
-
-    systemctl restart mariadb
-
-    ok "Accesso remoto abilitato: utente '${DB_USER}'@'%' su porta 3306 (0.0.0.0)"
+if command -v ufw >/dev/null 2>&1; then
+    ufw allow 3306/tcp comment "MariaDB modbus_db remoto" || true
 fi
+
+systemctl restart mariadb
+
+ok "Accesso remoto MariaDB abilitato su 0.0.0.0 per l'utente '${DB_USER}'@'%'"
 
 # ─────────────────────────────────────────────────────────────────────────
 # FASE 5 — CONFIGURAZIONE (config.ini)
